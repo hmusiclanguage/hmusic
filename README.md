@@ -14,6 +14,7 @@ https://github.com/lpil/sonic-pi-tool
 installation of the Sonic Pi tool, e.g.:
 
 sonicPiToolPath :: String
+
 sonicPiToolPath = "/home/john/.cargo/bin/"
 
 * Start sonic Pi before using HMusic
