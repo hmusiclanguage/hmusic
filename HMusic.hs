@@ -8,7 +8,10 @@ import System.IO.Unsafe
 
 data MPattern = X | O | MPattern :|  MPattern
     deriving (Eq,Show)
-data Track = MakeTrack Instrument MPattern | MakeTrackE Instrument [Effect] MPattern| Track :|| Track 
+data Track = MakeTrack Instrument MPattern 
+            | MakeTrackE Instrument [Effect] MPattern 
+            | Track :|| Track
+            | Master [Effect] Track 
     deriving (Eq, Show)
 
 data Effect = Reverb Float | Amp Float
@@ -67,18 +70,52 @@ joinTracks n [(MakeTrack i1 dp1,MakeTrack i2 dp2)] =
   let sizedp = lengthDP dp1
   in  if (sizedp < n)
       then MakeTrack i1 (dp1 :| genSilence (n-sizedp) :| dp2)
-	  else MakeTrack i1 (dp1 :| dp2)
+      else MakeTrack i1 (dp1 :| dp2)
+joinTracks n [(MakeTrackE i1 e1 dp1,MakeTrackE i2 e2 dp2)] = 
+      let sizedp = lengthDP dp1
+      in  if (sizedp < n)
+          then MakeTrackE i1 e1 (dp1 :| genSilence (n-sizedp) :| dp2)
+          else MakeTrackE i1 e1 (dp1 :| dp2)
+joinTracks n [(MakeTrack i1 dp1,MakeTrackE i2 [] dp2)] = 
+      let sizedp = lengthDP dp1
+      in  if (sizedp < n)
+          then MakeTrackE i1 [] (dp1 :| genSilence (n-sizedp) :| dp2)
+          else MakeTrackE i1 [] (dp1 :| dp2)
+joinTracks n [(MakeTrackE i1 [] dp1,MakeTrack i2 dp2)] = 
+      let sizedp = lengthDP dp1
+      in  if (sizedp < n)
+          then MakeTrackE i1 [] (dp1 :| genSilence (n-sizedp) :| dp2)
+          else MakeTrackE i1 [] (dp1 :| dp2)
 joinTracks n ((MakeTrack i1 dp1,MakeTrack i2 dp2):xs) = 
   let sizedp = lengthDP dp1
   in  if (sizedp < n)
       then MakeTrack i1 (dp1 :| genSilence (n-sizedp) :| dp2) :|| joinTracks n xs
-	  else MakeTrack i1 (dp1 :| dp2) :|| joinTracks n xs
-	  
+	    else MakeTrack i1 (dp1 :| dp2) :|| joinTracks n xs
+joinTracks n ((MakeTrackE i1 e1 dp1,MakeTrackE i2 e2 dp2):xs) = 
+      let sizedp = lengthDP dp1
+      in  if (sizedp < n)
+          then MakeTrackE i1 e1 (dp1 :| genSilence (n-sizedp) :| dp2) :|| joinTracks n xs
+          else MakeTrackE i1 e1 (dp1 :| dp2) :|| joinTracks n xs	  
+
+joinTracks n ((MakeTrack i1 dp1,MakeTrackE i2 [] dp2):xs) = 
+            let sizedp = lengthDP dp1
+            in  if (sizedp < n)
+                then MakeTrackE i1 [] (dp1 :| genSilence (n-sizedp) :| dp2) :|| joinTracks n xs
+                else MakeTrackE i1 [] (dp1 :| dp2) :|| joinTracks n xs
+joinTracks n ((MakeTrackE i1 [] dp1,MakeTrack i2 dp2):xs) = 
+                let sizedp = lengthDP dp1
+                in  if (sizedp < n)
+                    then MakeTrackE i1 [] (dp1 :| genSilence (n-sizedp) :| dp2) :|| joinTracks n xs
+                    else MakeTrackE i1 [] (dp1 :| dp2) :|| joinTracks n xs	  
+          
+
+
 
 addSilenceToBegin :: Int -> Track -> Track
-addSilenceToBegin n  t@(MakeTrack i dp) =  MakeTrack i (genSilence n :| dp)
-addSilenceToBegin n (t@(MakeTrack i dp) :|| ts) = 
-   MakeTrack i (genSilence n :| dp) :|| addSilenceToBegin n ts
+addSilenceToBegin n (MakeTrack i dp) =  MakeTrack i (genSilence n :| dp)
+addSilenceToBegin n (MakeTrackE i e dp) =  MakeTrackE i e (genSilence n :| dp)
+--addSilenceToBegin n (t@(MakeTrack i dp) :|| ts) = 
+--   MakeTrack i (genSilence n :| dp) :|| addSilenceToBegin n ts
 addSilenceToBegin n (t1 :|| t2) = (addSilenceToBegin n t1) :|| (addSilenceToBegin n t1)
 
 	
@@ -87,12 +124,17 @@ addSilenceToTheEnd n  t@(MakeTrack i dp) =
   let sizedp = lengthDP dp 
   in if (sizedp<n)
      then MakeTrack i (dp :| genSilence (n-sizedp))
-	 else t
-addSilenceToTheEnd n (t@(MakeTrack i dp) :|| ts) =
- let sizedp = lengthDP dp 
-  in if (sizedp<n)
-     then ((MakeTrack i (dp :| genSilence (n-sizedp))) :|| addSilenceToTheEnd n ts)
-	 else (t :|| addSilenceToTheEnd n ts)
+   else t
+addSilenceToTheEnd n  t@(MakeTrackE i e dp) = 
+    let sizedp = lengthDP dp 
+    in if (sizedp<n)
+       then MakeTrackE i e (dp :| genSilence (n-sizedp))
+     else t   
+--addSilenceToTheEnd n (t@(MakeTrack i dp) :|| ts) =
+-- let sizedp = lengthDP dp 
+-- in if (sizedp<n)
+--     then ((MakeTrack i (dp :| genSilence (n-sizedp))) :|| addSilenceToTheEnd n ts)
+--	 else (t :|| addSilenceToTheEnd n ts)
 addSilenceToTheEnd n (t1 :|| t2) = (addSilenceToTheEnd n t1) :|| (addSilenceToTheEnd n t1)
 
 
@@ -104,24 +146,15 @@ addSilenceToTheEnd n (t1 :|| t2) = (addSilenceToTheEnd n t1) :|| (addSilenceToTh
 -- * List of tuples containg matching tracks (t1, t2)
 
 separateTracks :: Track -> Track -> (Maybe Track , Maybe Track,  [(Track,Track)])
-separateTracks t@(MakeTrack i dp) t2 = case getTrack i t2 of
-	Nothing -> (Just t, Just t2,[])
-	Just tr2  -> let (b,mt) = removeTrack i t2 
-	             in (Nothing, mt, [(t,tr2)])
-separateTracks 	(t@(MakeTrack i dp) :|| ts) t2 =  case getTrack i t2 of
-	Nothing -> case separateTracks ts t2 of
-  		(Nothing, l1,l2) -> (Just t,l1,l2)
-		(Just tr,l1,l2) -> (Just (t:||tr),l1,l2)
-	Just tr -> 	case removeTrack i t2 of{
-	              (_,Nothing)   -> (Just ts,Nothing,[(t,tr)]);
-				  (_, Just nt2) ->  (rt1,rt2,(t,tr):lr)
-			                      where (rt1,rt2,lr) = separateTracks ts nt2}
-			  --let (rt1,rt2,lr) = separateTracks ts nt2
-				    --                in (rt1,rt2,(t,tr):lr)
+separateTracks t1@(MakeTrack i dp) t2 = case getTrack t1 t2 of
+	Nothing -> (Just t1, Just t2,[])
+	Just tr2  -> let (b,mt) = removeTrack t1 t2 
+	             in (Nothing, mt, [(t1,tr2)])
+separateTracks t1@(MakeTrackE i e dp) t2 = case getTrack t1 t2 of
+	Nothing -> (Just t1, Just t2,[])
+	Just tr2  -> let (b,mt) = removeTrack t1 t2 
+	             in (Nothing, mt, [(t1,tr2)])
 separateTracks (ta :|| tb) t2 = case separateTracks ta t2 of
---	(Nothing,Nothing,l) -> let (rt1,rt2,lr) = separateTracks tb t2
---	                       in (rt1,rts, l ++ lr)
---	(Nothing, Just r, l) -> case removeListOfTracks l t2	
 	(tr1,tr2,list) -> case removeListOfTracks list t2 of
 						Nothing -> (joinMaybeTracks tr1 (Just tb), tr2,list)
 						Just ntr2 -> let (a,b,c) = separateTracks tb ntr2
@@ -134,62 +167,50 @@ joinMaybeTracks (Just tr1) (Just tr2) = Just (tr1 :|| tr2)
 		
 removeListOfTracks :: [(Track,Track)] -> Track -> Maybe Track
 removeListOfTracks [] t = Just t
-removeListOfTracks ((MakeTrack i p,_):xs) t2 = case removeTrack i t2 of	
+removeListOfTracks ((t@(MakeTrack i p),_):xs) t2 = case removeTrack t t2 of	
+			(False,_) -> removeListOfTracks xs t2
+			(True,Nothing) -> Nothing
+			(True,Just t) -> removeListOfTracks xs t
+removeListOfTracks ((t@(MakeTrackE i e p),_):xs) t2 = case removeTrack t t2 of	
 			(False,_) -> removeListOfTracks xs t2
 			(True,Nothing) -> Nothing
 			(True,Just t) -> removeListOfTracks xs t
 
 
 
-removeTracks :: Instrument -> Track -> Maybe Track
-removeTracks i1 t@(MakeTrack i2 dp1)
-    | i1 == i2 = Nothing
-    | otherwise = Just t
-removeTracks i1 (t@(MakeTrack i2 dp1) :|| ts)
-    | i1 == i2 = removeTracks i1 ts
-    | otherwise = case getTrack i1 ts of
-		Nothing -> Just t
-		Just tr -> Just (t :|| tr)
-removeTracks i1 (t1 :|| t2) = case removeTracks i1 t1 of
-				Nothing -> removeTracks i1 t2
-				Just tr1 -> case removeTracks i1 t2 of
-						Nothing -> Just tr1
-						Just tr2 -> Just (tr1 :|| tr2)
 
-
-getTracks :: Instrument -> Track -> [Track]
-getTracks i1 t@(MakeTrack i2 dp1)
-    | i1 == i2 = [t]
-    | otherwise = []
-getTracks i1 (t@(MakeTrack i2 dp1) :|| ts)
-    | i1 == i2 = [t]
-    | otherwise = getTracks i1 ts
-getTracks i1 (t1 :|| t2) = (getTracks i1 t1) ++ (getTracks i1 t2)
-
-
-																 
-getTrack :: Instrument -> Track -> Maybe Track
-getTrack i1 t@(MakeTrack i2 dp1)
-	| i1 == i2 = Just t
+															 
+getTrack :: Track -> Track -> Maybe Track
+getTrack (MakeTrack i1 dp1) t@(MakeTrack i2 dp2)
+    | i1 == i2 = Just t
     | otherwise = Nothing
-getTrack i1 (t@(MakeTrack i2 dp1) :|| ts)
-	| i1 == i2 = Just t
-    | otherwise = getTrack i1 ts
+getTrack (MakeTrackE i1 e1 dp1) t@(MakeTrackE i2 e2 dp2)
+    | i1 == i2 && e1 == e2 = Just t
+    | otherwise = Nothing
+getTrack (MakeTrackE i1 e1 dp1) t@(MakeTrack i2 dp2)
+    | i1 == i2 && e1 == [] = Just t
+    | otherwise = Nothing
+getTrack (MakeTrack i1 dp1) t@(MakeTrackE i2 e dp2)
+    | i1 == i2 && e == [] = Just t
+    | otherwise = Nothing
 getTrack i1 (t1 :|| t2) = case getTrack i1 t1 of	
 							Just t -> Just t
 							Nothing -> getTrack i1 t2
 
 
-removeTrack :: Instrument -> Track -> (Bool,Maybe Track)
-removeTrack i1 t@(MakeTrack i2 dp1)
-	| i1 == i2 = (True,Nothing)
-    | otherwise = (False,Just t)
-removeTrack i1 (t@(MakeTrack i2 dp1) :|| ts)
-	| i1 == i2 = (True, Just ts)
-    | otherwise = case removeTrack i1 ts of
-					(True,Nothing) -> (True, Just t)
-					(True, Just tr) -> (True, Just (t:|| tr) )
-					(False, _) -> (False, Just (t:||ts))
+removeTrack :: Track -> Track -> (Bool,Maybe Track)
+removeTrack t1@(MakeTrack i1 dp1) t2@(MakeTrack i2 dp2)
+    | i1 == i2 = (True,Nothing)
+    | otherwise = (False,Just t2)
+removeTrack t1@(MakeTrackE i1 e dp1) t2@(MakeTrack i2 dp2)
+    | i1 == i2 && e== [] = (True,Nothing)
+    | otherwise = (False,Just t2)
+removeTrack t1@(MakeTrackE i1 e1 dp1) t2@(MakeTrackE i2 e2 dp2)
+    | i1 == i2 && e1==e2 = (True,Nothing)
+    | otherwise = (False,Just t2)
+removeTrack t1@(MakeTrack i1 dp1) t2@(MakeTrackE i2 e dp2)
+    | i1 == i2 && e== [] = (True,Nothing)
+    | otherwise = (False,Just t2)
 removeTrack i (t1 :|| t2) = case removeTrack i t1 of
 					(True,Nothing) -> (True, Just t2)
 					(True, Just tr) -> (True, Just (tr :|| t2) )
@@ -257,6 +278,31 @@ insertTrack sizetr1 sizetr2 (MakeTrack i dp1) (MakeTrack i2 dp2)
 	|otherwise = MakeTrack i dp1 :||  MakeTrack i2 dp2
 
 -}
+
+
+
+samePattern :: MPattern -> MPattern -> Bool
+samePattern X X = True
+samePattern O O = True
+samePattern X p = False
+samePattern O p = False
+samePattern (p11 :| p12) (p21 :| p22) = samePattern p11 p21 && samePattern p12 p22
+
+sameTrack :: Track -> Track -> Bool
+sameTrack (MakeTrack i1 p1) (MakeTrack i2 p2)
+          | i1 == i2 = samePattern p1 p2
+          | otherwise = False
+sameTrack (MakeTrackE i1 e1 p1) (MakeTrackE i2 e2 p2)
+          | i1 == i2 && e1 == e2 = samePattern p1 p2
+          | otherwise = False
+sameTrack (Master e1 t1) (Master e2 t2)
+          | e1 == e2 = sameTrack t1 t2
+          | otherwise = False
+sameTrack (MakeTrack i1 p1) t = False
+sameTrack (MakeTrackE i1 e1 p1) t = False
+sameTrack (Master e1 t1) t = False    
+sameTrack (t11 :|| t12) (t21 :|| t22) = sameTrack t11 t21 && sameTrack t12 t22
+
 
 
 headTr :: Track -> Track
@@ -360,6 +406,17 @@ track1 =
 t1  =  
   MakeTrack "drum_bass_hard"          (X :| X)
   :|| MakeTrack "drum_snare_hard"     (O :| O :| X :| O)
+
+te1 =  
+    MakeTrack "drum_bass_hard"          (X)
+    :|| MakeTrack "drum_snare_hard"     (O :| O :| X)
+    :|| MakeTrack "drum_cymbal_closed"  (X :| X :| X :| X)
+  
+te2  =  
+    MakeTrackE "drum_bass_hard" []         (X :| X)
+    :|| MakeTrack "drum_snare_hard"     (O :| O :| X :| O)  
+
+
   
 t2 =  MakeTrack "drum_cymbal_closed"  (X :| X :| X :| X)
 
