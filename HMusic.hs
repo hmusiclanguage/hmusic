@@ -149,7 +149,7 @@ separateTracks (ta :|| tb) t2 = case separateTracks ta t2 of
 	(tr1,tr2,list) -> case removeListOfTracks list t2 of
 						Nothing -> (joinMaybeTracks tr1 (Just tb), tr2,list)
 						Just ntr2 -> let (a,b,c) = separateTracks tb ntr2
-						             in (joinMaybeTracks tr1 a, joinMaybeTracks tr2 b, list ++c)
+						             in (joinMaybeTracks tr1 a, b, list ++c)
 
 joinMaybeTracks :: Maybe Track -> Maybe Track -> Maybe Track
 joinMaybeTracks Nothing a = a
@@ -172,6 +172,12 @@ removeListOfTracks ((t1,_):xs) t2 = case removeTrack t1 t2 of
 
 
 
+---
+--- Takes a base case track t1 and a possibly multi-track t2
+--- and returns a track from t2 that has the same instrument
+--- as t1 (simple track), same instrument and  same effects), 
+---- and in the case of a Master same effects and same track using
+--- the equivalence notion expressed above
 															 
 getTrack :: Track -> Track -> Maybe Track
 getTrack (MakeTrack i1 dp1) t@(MakeTrack i2 dp2)
@@ -205,7 +211,7 @@ removeTrack t1@(MakeTrack i1 dp1) t2@(MakeTrackE i2 e dp2)
     | i1 == i2 && e== [] = (True,Nothing)
     | otherwise = (False,Just t2)
 removeTrack t1@(Master _ _) t2@(Master _ _)
-    | t1==t2  = (True,Nothing)
+    | t1 == t2  = (True,Nothing)
     | otherwise = (False,Just t2)
 removeTrack i (t1 :|| t2) = case removeTrack i t1 of
 					(True,Nothing) -> (True, Just t2)
@@ -286,10 +292,10 @@ samePattern (p11 :| p12) (p21 :| p22) = samePattern p11 p21 && samePattern p12 p
 
 sameTrack :: Track -> Track -> Bool
 sameTrack (MakeTrack i1 p1) (MakeTrack i2 p2)
-          | i1 == i2 = samePattern p1 p2
+          | i1 == i2 = True
           | otherwise = False
 sameTrack (MakeTrackE i1 e1 p1) (MakeTrackE i2 e2 p2)
-          | i1 == i2 && e1 == e2 = samePattern p1 p2
+          | i1 == i2 && e1 == e2 = True
           | otherwise = False
 sameTrack (Master e1 t1) (Master e2 t2)
           | e1 == e2 = sameTrack t1 t2
@@ -410,12 +416,12 @@ t1  =
   :|| MakeTrack "drum_snare_hard"     (O :| O :| X :| O)
 
 te1 =  
-    MakeTrack "drum_bass_hard"          (X)
+    MakeTrackE "drum_bass_hard"  [Reverb 1.0]        (X)
     :|| MakeTrack "drum_snare_hard"     (O :| O :| X)
     :|| MakeTrack "drum_cymbal_closed"  (X :| X :| X :| X)
   
 te2  =  
-    MakeTrackE "drum_bass_hard" []         (X :| X)
+    MakeTrackE "drum_bass_hard" [Reverb 1.0]         (X :| X)
     :|| MakeTrack "drum_snare_hard"     (O :| O :| X :| O)  
 
 
