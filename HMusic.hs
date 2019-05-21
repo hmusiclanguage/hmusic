@@ -99,7 +99,7 @@ addSilenceToBegin n (MakeTrackE i e dp) =  MakeTrackE i e (genSilence n :| dp)
 --addSilenceToBegin n (t@(MakeTrack i dp) :|| ts) = 
 --   MakeTrack i (genSilence n :| dp) :|| addSilenceToBegin n ts
 addSilenceToBegin n (Master e t) = Master e (addSilenceToBegin n t)
-addSilenceToBegin n (t1 :|| t2) = (addSilenceToBegin n t1) :|| (addSilenceToBegin n t1)
+addSilenceToBegin n (t1 :|| t2) = (addSilenceToBegin n t1) :|| (addSilenceToBegin n t2)
 
 	
 addSilenceToTheEnd :: Int -> Track -> Track
