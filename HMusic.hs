@@ -128,6 +128,7 @@ addSilenceToTheEnd n (t1 :|| t2) = (addSilenceToTheEnd n t1) :|| (addSilenceToTh
 -- * Secont element all tracks from t2 that have no matching instruments with tracks
 -- from t1 
 -- * List of tuples containg matching tracks (t1, t2)
+
 -- Recursion is on the first argument. For all tracks in t1, try to find a matching
 -- track in t2
 --
@@ -172,14 +173,34 @@ removeListOfTracks ((t1,_):xs) t2 = case removeTrack t1 t2 of
 
 
 
----
+--- 
 --- Takes a base case track t1 and a possibly multi-track t2
---- and returns a track from t2 that has the same instrument
---- as t1 (simple track), same instrument and  same effects), 
----- and in the case of a Master same effects and same track using
+--- and returns a track from an equivalent track from t2.
+--- The notion of equivalence is defined in the sameTrack function:
+-- if t2 has the same instrument
+--- as t1 (simple track), same instrument and  same effects (in the case
+--  of a track with effects), 
+---- and in the case of a Master, same effects and same track using
 --- the equivalence notion expressed above
-															 
+
 getTrack :: Track -> Track -> Maybe Track
+getTrack t1 t2@(MakeTrack i2 dp2)
+    | sameTrack t1 t2 = Just t2
+    | otherwise = Nothing
+getTrack t1 t2@(MakeTrackE i2 e2 dp2)
+    | sameTrack t1 t2 = Just t2
+    | otherwise = Nothing
+getTrack t1 t2@(Master _ _)
+    | sameTrack t1 t2  = Just t2
+    | otherwise = Nothing
+getTrack i1 (t1 :|| t2) = case getTrack i1 t1 of	
+							Just t -> Just t
+							Nothing -> getTrack i1 t2
+
+
+
+
+{- getTrack :: Track -> Track -> Maybe Track
 getTrack (MakeTrack i1 dp1) t@(MakeTrack i2 dp2)
     | i1 == i2 = Just t
     | otherwise = Nothing
@@ -192,11 +213,14 @@ getTrack (MakeTrackE i1 e1 dp1) t@(MakeTrack i2 dp2)
 getTrack (MakeTrack i1 dp1) t@(MakeTrackE i2 e dp2)
     | i1 == i2 && e == [] = Just t
     | otherwise = Nothing
+getTrack t1@(Master _ _) t2@(Master _ _)
+    | sameTrack t1 t2  = Just t2
+    | otherwise = Nothing
 getTrack i1 (t1 :|| t2) = case getTrack i1 t1 of	
 							Just t -> Just t
 							Nothing -> getTrack i1 t2
 
-
+ -}
 removeTrack :: Track -> Track -> (Bool,Maybe Track)
 removeTrack t1@(MakeTrack i1 dp1) t2@(MakeTrack i2 dp2)
     | i1 == i2 = (True,Nothing)
@@ -211,7 +235,7 @@ removeTrack t1@(MakeTrack i1 dp1) t2@(MakeTrackE i2 e dp2)
     | i1 == i2 && e== [] = (True,Nothing)
     | otherwise = (False,Just t2)
 removeTrack t1@(Master _ _) t2@(Master _ _)
-    | t1 == t2  = (True,Nothing)
+    | sameTrack t1 t2  = (True,Nothing)
     | otherwise = (False,Just t2)
 removeTrack i (t1 :|| t2) = case removeTrack i t1 of
 					(True,Nothing) -> (True, Just t2)
@@ -281,14 +305,10 @@ insertTrack sizetr1 sizetr2 (MakeTrack i dp1) (MakeTrack i2 dp2)
 
 -}
 
+-- Definition of "same track" used for track composition:
+-- Tracks are the same if they have the same Instrument, i.e.,
+-- play the same sample
 
-
-samePattern :: MPattern -> MPattern -> Bool
-samePattern X X = True
-samePattern O O = True
-samePattern X p = False
-samePattern O p = False
-samePattern (p11 :| p12) (p21 :| p22) = samePattern p11 p21 && samePattern p12 p22
 
 sameTrack :: Track -> Track -> Bool
 sameTrack (MakeTrack i1 p1) (MakeTrack i2 p2)
@@ -300,10 +320,25 @@ sameTrack (MakeTrackE i1 e1 p1) (MakeTrackE i2 e2 p2)
 sameTrack (Master e1 t1) (Master e2 t2)
           | e1 == e2 = sameTrack t1 t2
           | otherwise = False
+sameTrack (MakeTrackE i1 e1 dp1) t@(MakeTrack i2 dp2)
+          | i1 == i2 && e1 == [] = True
+          | otherwise = False
+sameTrack (MakeTrack i1 dp1) t@(MakeTrackE i2 e dp2)
+          | i1 == i2 && e == [] = True
+          | otherwise = False
 sameTrack (MakeTrack i1 p1) t = False
 sameTrack (MakeTrackE i1 e1 p1) t = False
 sameTrack (Master e1 t1) t = False    
 sameTrack (t11 :|| t12) (t21 :|| t22) = sameTrack t11 t21 && sameTrack t12 t22
+sameTrack (t11 :|| t12) t = False
+
+
+samePattern :: MPattern -> MPattern -> Bool
+samePattern X X = True
+samePattern O O = True
+samePattern X p = False
+samePattern O p = False
+samePattern (p11 :| p12) (p21 :| p22) = samePattern p11 p21 && samePattern p12 p22
 
 
 
