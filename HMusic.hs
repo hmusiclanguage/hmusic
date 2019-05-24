@@ -14,7 +14,8 @@ data Track = MakeTrack Instrument MPattern
             | Master [Effect] Track 
     deriving (Eq, Show)
 
-data Effect = Reverb Float | Amp Float
+data Effect = Reverb Float | Amp Float | Attack Float | Release Float | Rate Float | Sustain Float
+		| Start Float | Finish Float
     deriving (Eq,Show)
 
 type Instrument = String
@@ -194,8 +195,8 @@ getTrack t1 t2@(Master _ _)
     | sameTrack t1 t2  = Just t2
     | otherwise = Nothing
 getTrack i1 (t1 :|| t2) = case getTrack i1 t1 of	
-							Just t -> Just t
-							Nothing -> getTrack i1 t2
+    Just t -> Just t
+    Nothing -> getTrack i1 t2
 
 
 
@@ -376,20 +377,20 @@ n |* t = multTrack (lengthTrack t) n t
 multTrack :: Int -> Int -> Track -> Track
 multTrack size n (MakeTrack i dp) = let sizedp = lengthDP dp 
                                     in  case (sizedp < size) of
-										True -> MakeTrack i (n .* (dp :| genSilence (size - sizedp)))
-										False -> MakeTrack i (n .* dp)
+                                          True -> MakeTrack i (n .* (dp :| genSilence (size - sizedp)))
+                                          False -> MakeTrack i (n .* dp)
 multTrack size n (MakeTrackE i e dp) = let sizedp = lengthDP dp 
                                     in  case (sizedp < size) of
-										True -> MakeTrackE i e (n .* (dp :| genSilence (size - sizedp)))
-										False -> MakeTrackE i e (n .* dp)
+                                          True -> MakeTrackE i e (n .* (dp :| genSilence (size - sizedp)))
+                                          False -> MakeTrackE i e (n .* dp)
 multTrack size n ((MakeTrack i dp):|| t) = let sizedp = lengthDP dp 
                                            in  case (sizedp < size) of
-												True -> (MakeTrack i (n .* (dp :| genSilence (size - sizedp)))) :|| multTrack size n t
-												False -> (MakeTrack i (n .* dp)) :|| multTrack size n t
+                                                True -> (MakeTrack i (n .* (dp :| genSilence (size - sizedp)))) :|| multTrack size n t
+                                                False -> (MakeTrack i (n .* dp)) :|| multTrack size n t
 multTrack size n ((MakeTrackE i e dp):|| t) = let sizedp = lengthDP dp 
                                            in  case (sizedp < size) of
-												True -> (MakeTrackE i e (n .* (dp :| genSilence (size - sizedp)))) :|| multTrack size n t
-												False -> (MakeTrackE i e (n .* dp)) :|| multTrack size n t
+                                                True -> (MakeTrackE i e (n .* (dp :| genSilence (size - sizedp)))) :|| multTrack size n t
+                                                False -> (MakeTrackE i e (n .* dp)) :|| multTrack size n t
 
 
 genSilence :: Int -> MPattern
@@ -459,7 +460,8 @@ te2  =
     MakeTrackE "drum_bass_hard" [Reverb 1.0]         (X :| X)
     :|| MakeTrack "drum_snare_hard"     (O :| O :| X :| O)  
 
-
+tm1 = MakeTrack "drum_bass_hard" X
+    :|| Master [Reverb 1.0] te2
   
 t2 =  MakeTrack "drum_cymbal_closed"  (X :| X :| X :| X)
 
@@ -635,38 +637,54 @@ tailD (O:|p) = p
 tailD (X:|p) = p
 tailD (x:|y) = tailD x :| y
 
-getBeat :: Track -> [Instrument]
-getBeat (MakeTrack i O)=[]
-getBeat (MakeTrack i X)= [i]
-getBeat (MakeTrack i (X:|p))= [i]
-getBeat (MakeTrack i (O:|p))= []
-getBeat (MakeTrack i (x:| y)) = getBeat (MakeTrack i x)
-getBeat (MakeTrack i X :|| t)= i:getBeat t
-getBeat (MakeTrack i O :|| t)= getBeat t
-getBeat ((MakeTrack i (O:|p)) :|| t)= getBeat t
-getBeat ((MakeTrack i (X:|p)) :|| t)= i: getBeat t
-getBeat ((MakeTrack i (x:|y)) :|| t)= getBeat (MakeTrack i x) ++  getBeat t
+getBeat :: Track -> [(Maybe [Effect], Instrument)]
+getBeat (MakeTrack i p)
+    | isAHit p = [(Nothing,i)]
+    | otherwise = []
+getBeat (MakeTrackE i e p)
+    | isAHit p = [(Just e,i)]
+    | otherwise = []
+getBeat (Master e t) = map (addEffects e) (getBeat t)
+  where addEffects :: [Effect] -> (Maybe [Effect], Instrument) -> (Maybe [Effect], Instrument)
+        addEffects e (Nothing,i) = (Just e, i)
+        addEffects e (Just et,i) = (Just (e++et),i)
 getBeat (t1 :|| t2) = getBeat t1 ++ getBeat t2
 --getBeat ((MakeTrack i dp))
-removeBeat :: Track -> Maybe Track
-removeBeat (MakeTrack i O)= Nothing
-removeBeat (MakeTrack i X)= Nothing
-removeBeat (MakeTrack i (X:|p))= Just (MakeTrack i p)
-removeBeat (MakeTrack i (O:|p))= Just (MakeTrack i p)
-removeBeat (MakeTrack i (x:|y))= Just (MakeTrack i (tailD (x:|y)))
-removeBeat (MakeTrack i X :|| t)= removeBeat t 
-removeBeat (MakeTrack i O :|| t)= removeBeat t 
-removeBeat ((MakeTrack i (x:|p)) :|| t)= case removeBeat t of
-    Just tf -> Just $ MakeTrack i (tailD (x:|p)) :|| tf
-    Nothing -> Just $ MakeTrack i (tailD (x:|p))
-removeBeat (t1 :|| t2)= case removeBeat t1 of
-    Just tf1 -> case removeBeat t2 of
+
+
+
+
+isAHit :: MPattern -> Bool
+isAHit O = False
+isAHit X = True
+isAHit (p1 :| p2) = isAHit p1
+
+removeBeat :: MPattern -> Maybe MPattern
+removeBeat O = Nothing
+removeBeat X = Nothing
+removeBeat (p1 :| p2) = case removeBeat p1 of
+    Just np1 ->  Just $ np1 :| p2
+    Nothing -> Just p2
+
+
+removeBeatTrack :: Track -> Maybe Track
+removeBeatTrack (MakeTrack i p) = case removeBeat p of
+	Nothing -> Nothing
+	Just pf -> Just $ MakeTrack i pf
+removeBeatTrack (MakeTrackE i e p) = case removeBeat p of
+	Nothing -> Nothing
+	Just pf -> Just $ MakeTrackE i e pf
+removeBeatTrack (Master e t) = case removeBeatTrack t of
+	Nothing -> Nothing
+	Just tf -> Just $ Master e tf
+removeBeatTrack (t1 :|| t2)= case removeBeatTrack t1 of
+    Just tf1 -> case removeBeatTrack t2 of
                  Just tf2 -> Just $ tf1 :|| tf2
                  Nothing -> Just tf1 
-    Nothing -> removeBeat t2 
+    Nothing -> removeBeatTrack t2 
 
-listOfBeats :: Track -> [[Instrument]]
-listOfBeats t = case removeBeat t of
+listOfBeats :: Track -> [[(Maybe [Effect], Instrument)]]
+listOfBeats t = case removeBeatTrack t of
 					Just tr -> beat : listOfBeats tr
 					Nothing -> [beat]
    where beat = getBeat t
@@ -684,14 +702,33 @@ musicState = unsafePerformIO (newIORef Nothing)
 genSonicPI :: Float  -> Track -> String
 genSonicPI time track = genSonicPI_ time (listOfBeats track)
 
-genSonicPI_ :: Float -> [[Instrument]] -> String
+genSonicPI_ :: Float -> [[(Maybe [Effect], Instrument)]] -> String
 genSonicPI_ time [] = ""
 genSonicPI_ time (i:xs) = genNotes i ++ "\tsleep " ++ show time ++ "\n" ++ genSonicPI_ time xs
 
-genNotes :: [Instrument] -> String
+genNotes :: [(Maybe [Effect], Instrument)] -> String
 genNotes [] = ""
-genNotes (i:xs) = "\tsample :" ++ i++ ", rate: 1\n" ++ genNotes xs
+genNotes ((Nothing,i):xs) = "\tsample :" ++ i++ "\n" ++ genNotes xs
+genNotes ((Just e,i):xs) = "\tsample :" ++ i++ ", rate: 1\n" ++ genNotes xs
 
+--genEffects :: Maybe
+
+
+genEffects :: [Effect] -> String
+genEffects [] = ""
+genEffects [e] = effectToString e
+genEffects (e:xs) = effectToString e ++ ", " ++ genEffects xs
+
+effectToString :: Effect -> String
+effectToString (Reverb n) = "reverb " ++ show n
+effectToString (Amp n) = "amp " ++ show n
+effectToString (Attack n) = "attack " ++ show n
+effectToString (Release n) = "release " ++ show n
+effectToString (Rate n) = "rate " ++ show n
+effectToString (Sustain n) = "sustain " ++ show n
+effectToString (Start n) = "start " ++ show n
+effectToString (Finish n) = "finish " ++ show n
+    
 
 play :: Float -> Track  -> IO ()
 play bpm track = do
