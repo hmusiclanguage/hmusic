@@ -383,6 +383,10 @@ multTrack size n (MakeTrackE i e dp) = let sizedp = lengthDP dp
                                     in  case (sizedp < size) of
                                           True -> MakeTrackE i e (n .* (dp :| genSilence (size - sizedp)))
                                           False -> MakeTrackE i e (n .* dp)
+multTrack size n (Master e t) = Master e (multTrack size n t)
+multTrack size n (t1 :|| t2) = multTrack size n t1 :|| multTrack size n t2
+
+{-
 multTrack size n ((MakeTrack i dp):|| t) = let sizedp = lengthDP dp 
                                            in  case (sizedp < size) of
                                                 True -> (MakeTrack i (n .* (dp :| genSilence (size - sizedp)))) :|| multTrack size n t
@@ -392,6 +396,7 @@ multTrack size n ((MakeTrackE i e dp):|| t) = let sizedp = lengthDP dp
                                                 True -> (MakeTrackE i e (n .* (dp :| genSilence (size - sizedp)))) :|| multTrack size n t
                                                 False -> (MakeTrackE i e (n .* dp)) :|| multTrack size n t
 
+-} 
 
 genSilence :: Int -> MPattern
 genSilence n = takeBeats n infiniteSilence
@@ -632,10 +637,6 @@ takeBeatsT n (x:|y) = let (db,r) = takeBeatsT n x
 ------------------------------------------------------------------------------------------------------------------------------------
 
 
-tailD :: MPattern -> MPattern
-tailD (O:|p) = p 
-tailD (X:|p) = p
-tailD (x:|y) = tailD x :| y
 
 getBeat :: Track -> [(Maybe [Effect], Instrument)]
 getBeat (MakeTrack i p)
