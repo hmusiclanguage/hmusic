@@ -15,7 +15,7 @@ data Track = MakeTrack Instrument MPattern
     deriving (Eq, Show)
 
 data Effect = Reverb Float | Amp Float | Attack Float | Release Float | Rate Float | Sustain Float
-		| Start Float | Finish Float
+		| Start Float | Finish Float | Echo
     deriving (Eq,Show)
 
 type Instrument = String
@@ -457,8 +457,8 @@ t1  =
   :|| MakeTrack "drum_snare_hard"     (O :| O :| X :| O)
 
 te1 =  
-    MakeTrackE "drum_bass_hard"  [Reverb 1.0]        (X)
-    :|| MakeTrack "drum_snare_hard"     (O :| O :| X)
+    MakeTrack "drum_bass_hard"          (X)
+    :|| MakeTrackE "drum_snare_hard"  [Reverb 1.0, Amp 1.0, Echo]   (O :| O :| X)
     :|| MakeTrack "drum_cymbal_closed"  (X :| X :| X :| X)
   
 te2  =  
@@ -710,7 +710,7 @@ genSonicPI_ time (i:xs) = genNotes i ++ "\tsleep " ++ show time ++ "\n" ++ genSo
 genNotes :: [(Maybe [Effect], Instrument)] -> String
 genNotes [] = ""
 genNotes ((Nothing,i):xs) = "\tsample :" ++ i++ "\n" ++ genNotes xs
-genNotes ((Just e,i):xs) = "\tsample :" ++ i++ ", rate: 1\n" ++ genNotes xs
+genNotes ((Just e,i):xs) = "\tsample :" ++ i++ ", "++ genEffects e ++"\n" ++ genNotes xs
 
 --genEffects :: Maybe
 
@@ -721,14 +721,15 @@ genEffects [e] = effectToString e
 genEffects (e:xs) = effectToString e ++ ", " ++ genEffects xs
 
 effectToString :: Effect -> String
-effectToString (Reverb n) = "reverb " ++ show n
-effectToString (Amp n) = "amp " ++ show n
-effectToString (Attack n) = "attack " ++ show n
-effectToString (Release n) = "release " ++ show n
-effectToString (Rate n) = "rate " ++ show n
-effectToString (Sustain n) = "sustain " ++ show n
-effectToString (Start n) = "start " ++ show n
-effectToString (Finish n) = "finish " ++ show n
+effectToString (Reverb n) = "reverb: " ++ show n
+effectToString (Amp n) = "amp: " ++ show n
+effectToString (Attack n) = "attack: " ++ show n
+effectToString (Release n) = "release: " ++ show n
+effectToString (Rate n) = "rate: " ++ show n
+effectToString (Sustain n) = "sustain: " ++ show n
+effectToString (Start n) = "start: " ++ show n
+effectToString (Finish n) = "finish: " ++ show n
+effectToString Echo = "echo" 
     
 
 play :: Float -> Track  -> IO ()
