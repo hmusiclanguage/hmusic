@@ -12,6 +12,7 @@ data Track = MakeTrack Instrument MPattern
             | MakeTrackE Instrument [Effect] MPattern 
             | Track :|| Track
             | Master [Effect] Track 
+            | MasterN String [Effect] Track
     deriving (Eq, Show)
 
 data Effect = Reverb Float | Amp Float | Attack Float | Release Float | Rate Float | Sustain Float
@@ -458,7 +459,7 @@ t1  =
 
 te1 =  
     MakeTrack "drum_bass_hard"          (X)
-    :|| MakeTrackE "drum_snare_hard"  [Reverb 1.0, Amp 1.0, Echo]   (O :| O :| X)
+    :|| MakeTrackE "drum_snare_hard"  [Reverb 1.0, Amp 1.0]   (O :| O :| X)
     :|| MakeTrack "drum_cymbal_closed"  (X :| X :| X :| X)
   
 te2  =  
@@ -582,6 +583,47 @@ rock =
  :||  	MakeTrack BassDrum            (3 .* ( X :| O :| O :| X :| X :| O :| O :| O ))
 
  -}
+
+lengthmp :: MPattern -> Int
+lengthmp (x:|y) = lengthmp x + 
+                   lengthmp y 
+lengthmp _ = 1
+
+mapTrack :: (Track -> Track) -> Track -> Track
+mapTrack f (t1 :|| t2) = mapTrack f t1 :|| mapTrack f t2
+mapTrack f t = f t
+
+drumsN :: Track
+drumsN 
+   = MasterN "drums" [Amp 0.2] drums
+
+
+
+changeMaster :: String -> [Effect] -> Track -> Track
+changeMaster name e t@(MasterN n em tm) 
+  | name == n = MasterN n e tm
+  | otherwise = t
+changeMaster i e t = t
+
+if' :: Bool -> a -> a -> a
+if' True  x _ = x
+if' False _ y = y
+
+infixr 1 ?
+(?) :: Bool -> a -> a -> a
+(?) = if'
+
+subsEffects :: [Effect] -> [Effect] -> Track -> Track
+subsEffects e1 e2 t@(MakeTrackE i e f)
+  | e1 == e = MakeTrackE i e2 f
+  | otherwise = t
+subsEffects e1 e2 t = t
+
+changeTrack :: Instrument -> [Effect] -> Track -> Track
+changeTrack i e t@(MakeTrack it p) 
+  | i == it = MakeTrackE i e p
+  | otherwise = t
+changeTrack i e t = t
 
 lengthDP :: MPattern -> Int
 lengthDP O = 1
