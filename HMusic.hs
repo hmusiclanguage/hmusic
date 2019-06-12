@@ -660,6 +660,7 @@ lengthTrack :: Track -> Int
 lengthTrack (MakeTrack _ dp) = lengthDP dp
 lengthTrack (MakeTrackE _ e dp) = lengthDP dp
 lengthTrack (Master e t) = lengthTrack t
+lengthTrack (MasterN n e t) = lengthTrack t
 lengthTrack (t1 :|| t2) = max (lengthTrack t1) (lengthTrack t2)
 
 headDP :: MPattern -> MPattern
