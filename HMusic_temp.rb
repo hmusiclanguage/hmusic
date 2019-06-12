@@ -1,12 +1,13 @@
 live_loop :hmusic do
-	sample :drum_bass_hard
-	sample :drum_cymbal_closed
-	sleep 0.53571427
-	sample :drum_cymbal_closed
-	sleep 0.53571427
-	sample :drum_snare_hard, reverb: 1.0, amp: 1.0, echo
-	sample :drum_cymbal_closed
-	sleep 0.53571427
-	sample :drum_cymbal_closed
-	sleep 0.53571427
+	sample :kick
+	sample :hihat, attack: 0.1, sustain: 0.3, release: 0.1
+	sample :guitar
+	sleep 0.6
+	sample :hihat, attack: 0.1, sustain: 0.3, release: 0.1
+	sleep 0.6
+	sample :snare, reverb: 0.5
+	sample :hihat, attack: 0.1, sustain: 0.3, release: 0.1
+	sleep 0.6
+	sample :hihat, attack: 0.1, sustain: 0.3, release: 0.1
+	sleep 0.6
 end
