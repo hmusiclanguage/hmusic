@@ -607,6 +607,48 @@ rock =
 
  -}
 
+
+drumAndBass2 = 
+  MakeTrack "drum_cymbal_open"        (O :| X :| O :| X :| O :| X :| O :| X :| O :| X :| X :| X :| O :| X :| O :| X)
+ :|| MakeTrack "drum_cymbal_closed"   (X :| O :| X :| O :| X :| O :| X :| O :| X :| O :| X :| O :| X :| O :| X :| O)
+ :|| MakeTrack "drum_cymbal_hard"     (X :| O :| X :| O :| X :| O :| X :| O :| X :| O :| X :| O :| X :| O :| X :| O)
+ :|| MakeTrack "drum_snare_hard"      (O :| X :| O :| O :| O :| O :| O :| O :| X :| O :| O :| O :| X :| X :| X :| X)
+ :|| MakeTrack "drum_bass_hard"       (X :| O :| O :| O :| O :| O :| X :| O :| O :| O :| O :| O :| O )
+
+drumAndBass1 =
+   MakeTrack "drum_snare_hard"  (O :| O :| O :| O :| X :| O :| O :| O :| O :| O :| O :| O :| X :| O :| O :| O)
+  :|| MakeTrack "drum_bass_hard"   (X :| O :| O :| O :| O :| O :| O :| O :| O :| O :| X :| O :| O )
+
+walkThisWay = 
+    MakeTrack "drum_cymbal_closed"       (O :| O :| O :| O :| X :| O :| O :| X :| X :| O :| X :| O :| X :| O :| O :| O)
+    :|| MakeTrack "drum_cymbal_hard"   X
+    :|| MakeTrack "drum_snare_hard" (O :| O :| O :| O :| X :| O :| O :| O :| O :| O :| O :| O :| X :| O :| O :| O)
+    :|| MakeTrack  "drum_bass_hard"     (X :| O :| O :| O :| O :| O :| O :| X :| X :| O :| X :| O :| O )
+  
+
+
+
+trackD =MakeTrack  "ambi_drone"    (X :| O :| O :| O :| O :| O :| O :| O :| O :| O :| O :| O :| O :| O :| O :| O)
+
+sacomp = 
+    MakeTrack "drum_snare_hard" (O :| O :| O :| O :| X :| O :| O :| O :| O :| O :| O :| O :| X :| O :| O :| O)
+    :|| MakeTrack  "drum_bass_hard"     (X :| O :| O :| O :| O :| O :| O :| X :| X :| O :| X :| O :| O )
+
+cymbal =  MakeTrack "drum_cymbal_closed"   (X :| O :| X :| O :| X :| X :| X :| X :| X :| X :| X :| X :| O :| X :| O :| X)
+  
+flute = MakeTrack ":flute.wav" (X :| genSilence 15)
+        :|| MakeTrack ":flute.wav" (X :| genSilence 15)
+
+alo = MakeTrack ":alo.wav" (X:|genSilence 15)   :|| MakeTrack ":alo.wav" (X:|genSilence 15) 
+
+tough = MakeTrack ":tough.wav" (X :| genSilence 15) :|| MakeTrack ":tough.wav" (X :| genSilence 15)
+
+quebradera = (auau  :|| sacomp :|| alo)
+
+auau = MakeTrack ":auau.wav" (genSilence 15 :| X) :|| MakeTrack ":auau.wav" (genSilence 15 :| X)
+
+final = (2 |* sacomp) :|| alo :|| auau
+
 lengthmp :: MPattern -> Int
 lengthmp (x:|y) = lengthmp x + 
                    lengthmp y 
@@ -620,6 +662,13 @@ drumsN :: Track
 drumsN 
    = MasterN "drums" [Amp 0.2] te1
 
+
+subsInstr :: Instrument -> Instrument -> 
+    Track -> Track
+subsInstr i1 i2 t@(MakeTrack i p)
+  | i == i1 = MakeTrack i2 p
+  | otherwise = t
+subsInstr i1 i2 t = t
 
 
 changeMaster :: String -> [Effect] -> Track -> Track
@@ -646,7 +695,7 @@ changeTrack :: Instrument -> [Effect] -> Track -> Track
 changeTrack i e t@(MakeTrack it p) 
   | i == it = MakeTrackE i e p
   | otherwise = t
-changeTrack i e t = t
+changeTrack i e (t1:||t2) = changeTrack i e t1 :|| changeTrack i e t2
 
 lengthDP :: MPattern -> Int
 lengthDP O = 1
@@ -766,6 +815,9 @@ listOfBeats t = case removeBeatTrack t of
 musicState :: IORef (Maybe Track)
 musicState = unsafePerformIO (newIORef Nothing)
 
+musicBPM :: IORef (Maybe Float)
+musicBPM = unsafePerformIO (newIORef Nothing)
+
 genSonicPI :: Float  -> Track -> String
 genSonicPI time track = genSonicPI_ time (listOfBeats track)
 
@@ -775,8 +827,22 @@ genSonicPI_ time (i:xs) = genNotes i ++ "\tsleep " ++ show time ++ "\n" ++ genSo
 
 genNotes :: [(Maybe [Effect], Instrument)] -> String
 genNotes [] = ""
-genNotes ((Nothing,i):xs) = "\tsample :" ++ i++ "\n" ++ genNotes xs
-genNotes ((Just e,i):xs) = "\tsample :" ++ i++ ", "++ genEffects e ++"\n" ++ genNotes xs
+genNotes ((Nothing,i):xs)
+  | head i == ':' = "\tsample \"/s/" ++ tail i++ "\"\n" ++ genNotes xs
+  | otherwise = "\tsample :" ++ i++ "\n" ++ genNotes xs
+genNotes ((Just e,i):xs) 
+  | head i == ':' = genWithEffect e ++"\tsample " ++"/s/\"" ++ tail i++"\"" ++" "++ genEnds e ++"\n" ++ genNotes xs
+  | otherwise = genWithEffect e ++"\tsample :" ++ i++ " "++ genEnds e ++"\n" ++ genNotes xs
+-- genNotes ((Just e,i):xs) = "\tsample :" ++ i++ ", "++ genEffects e ++"\n" ++ genNotes xs
+
+
+genWithEffect :: [Effect] -> String
+genWithEffect [] = ""
+genWithEffect (e:xs) = "with_fx :" ++ effectToString e ++ " do\n"++ genWithEffect xs
+
+genEnds :: [Effect] -> String
+genEnds [] = ""
+genEnds (x:xs) = "\nend" ++ genEnds xs
 
 --genEffects :: Maybe
 
@@ -787,7 +853,7 @@ genEffects [e] = effectToString e
 genEffects (e:xs) = effectToString e ++ ", " ++ genEffects xs
 
 effectToString :: Effect -> String
-effectToString (Reverb n) = "reverb: " ++ show n
+effectToString (Reverb n) = "reverb" 
 effectToString (Amp n) = "amp: " ++ show n
 effectToString (Attack n) = "attack: " ++ show n
 effectToString (Release n) = "release: " ++ show n
@@ -811,7 +877,8 @@ play bpm track = do
 loop :: Float -> Track  -> IO ()
 loop bpm track = do
         let sizeTrack = lengthTrack track
-        writeIORef musicState (Just track) 
+        writeIORef musicState (Just track)
+        writeIORef musicBPM (Just (60/bpm)) 
         
 	writeFile "HMusic_temp.rb" $ "live_loop :hmusic do\n" ++ genSonicPI (60/bpm) track ++ "end"
 	v <- system $ sonicPiToolPath++"sonic-pi-tool eval-file HMusic_temp.rb"
@@ -822,12 +889,16 @@ applyToMusic ftrack = do
     v <- readIORef musicState
     case v of
         Just t -> do 
-                let newTrack = ftrack t
-                print $ show newTrack
-                writeIORef musicState (Just newTrack)
-		writeFile "HMusic_temp.rb" $ "live_loop :hmusic do\n" ++ genSonicPI 0.3 newTrack ++ "end"
-		v <- system $ sonicPiToolPath ++ "sonic-pi-tool eval-file HMusic_temp.rb"
-    		print $ show v
+                  mbpm <- readIORef musicBPM
+                  case mbpm of
+                    Just bpm -> do
+                     let newTrack = ftrack t
+                     --print $ show newTrack
+                     writeIORef musicState (Just newTrack)
+                     writeFile "HMusic_temp.rb" $ "live_loop :hmusic do\n" ++ genSonicPI bpm newTrack ++ "end"
+                     r <-system $ sonicPiToolPath ++ "sonic-pi-tool eval-file HMusic_temp.rb"
+                     print $ show r
+                    --Nothing -> error "No bpm for the running track" 
         Nothing -> error "No running track to be modified"
 
 startMusicServer :: IO ()
