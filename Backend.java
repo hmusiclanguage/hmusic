@@ -11,60 +11,60 @@ import com.jsyn.unitgen.VariableRateStereoReader;
 import com.jsyn.util.SampleLoader;
 
 public class Backend {
-  /* Constants. */
-  /* Always 60 / BPM. You can think of it as seconds between each beat. */
-  private static final double songRate = 60.0 / 120.0;
-  private static final String[] sampleFiles = {
-    "sample/bd.wav", "sample/sd.wav", "sample/hh.wav"
-  };
-  private static final boolean loop = true; /* Whether song loops or not. */
+  private Synthesizer synth;
+  private LineOut lineOut;
+  /*
+  * NOTE: the number of channels should be independent from the
+  * number of actual samples and instead be equivalent to the
+  * number of tracks in the HMusic song.
+  */
+  private VariableRateDataReader[] channels;
+  private FloatSample[] samples;
 
-  /* Thinking not constant because it might change with code,
-  * but that might be computed at compile time maybe. */
-  private static int[][] pattern = {{0, 2}, {}, {1, 2}, {2}};
-
-  public static void main (String[] args)
+  public Backend()
   {
-    Synthesizer synth;
-    LineOut lineOut;
-    /*
-    * NOTE: the number of channels should be independent from the
-    * number of actual samples and instead be equivalent to the
-    * number of tracks in the HMusic song.
-    */
-    VariableRateDataReader[] channels;
-    FloatSample[] samples;
-
     synth = JSyn.createSynthesizer();
+    synth.add(lineOut = new LineOut());
+  }
+
+  public Backend loadSamples (String[] paths) throws IOException
+  {
+    /* Load the samples from their files. */
+    SampleLoader.setJavaSoundPreferred(false);
+    samples = new FloatSample[paths.length];
+    for (int i = 0; i < paths.length; i++) {
+      File file = new File(paths[i]);
+      samples[i] = SampleLoader.loadFloatSample(file);
+    }
+
+    /* Create a channel for each sample. */
+    channels = new VariableRateDataReader[paths.length];
+    for (int i = 0; i < samples.length; i++) {
+      if (samples[i].getChannelsPerFrame() == 1) {
+        synth.add(channels[i] = new VariableRateMonoReader());
+        channels[i].output.connect(0, lineOut.input, 0);
+      } else if (samples[i].getChannelsPerFrame() == 2) {
+        synth.add(channels[i] = new VariableRateStereoReader());
+        channels[i].output.connect(0, lineOut.input, 0);
+        channels[i].output.connect(1, lineOut.input, 1);
+      } else {
+        throw new RuntimeException("Can only play mono or stereo samples.");
+      }
+
+      channels[i].rate.set(samples[i].getFrameRate());
+    }
+
+    return this;
+  }
+
+  public Backend play (double bpm, int[][] pattern, boolean loop)
+  {
+    double songRate;
+
+    /* Always 60 / BPM. You can think of it as seconds between each beat. */
+    songRate = 60.0 / bpm;
 
     try {
-      synth.add(lineOut = new LineOut());
-
-      /* Load the samples from their files. */
-      SampleLoader.setJavaSoundPreferred(false);
-      samples = new FloatSample[sampleFiles.length];
-      for (int i = 0; i < sampleFiles.length; i++) {
-        File file = new File(sampleFiles[i]);
-        samples[i] = SampleLoader.loadFloatSample(file);
-      }
-
-      /* Create a channel for each sample. */
-      channels = new VariableRateDataReader[sampleFiles.length];
-      for (int i = 0; i < samples.length; i++) {
-        if (samples[i].getChannelsPerFrame() == 1) {
-          synth.add(channels[i] = new VariableRateMonoReader());
-          channels[i].output.connect(0, lineOut.input, 0);
-        } else if (samples[i].getChannelsPerFrame() == 2) {
-          synth.add(channels[i] = new VariableRateStereoReader());
-          channels[i].output.connect(0, lineOut.input, 0);
-          channels[i].output.connect(1, lineOut.input, 1);
-        } else {
-          throw new RuntimeException("Can only play mono or stereo samples.");
-        }
-
-        channels[i].rate.set(samples[i].getFrameRate());
-      }
-
       synth.start();
       lineOut.start();
 
@@ -83,12 +83,24 @@ public class Backend {
           synth.sleepUntil(time);
         }
       } while (loop);
-    } catch (IOException e) {
-      e.printStackTrace();
     } catch (InterruptedException e) {
       e.printStackTrace();
     }
 
     synth.stop();
+
+    return this;
+  }
+
+  /* Testing main. */
+  public static void main (String[] args)
+  {
+    try {
+      new Backend()
+        .loadSamples(new String[] {"sample/bd.wav", "sample/sd.wav", "sample/hh.wav"})
+        .play(120, new int[][] {{0, 2}, {0, 2}, {1, 2}, {2}}, true);
+    } catch (IOException e) {
+      e.printStackTrace();
+    }
   }
 }
