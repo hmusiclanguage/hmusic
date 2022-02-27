@@ -1,15 +1,32 @@
 module JSynCompiler where
 
 import Data.List
+--import Data.List.Utils
+import Utils
+import System.IO
 
 import HMusic
 
 -- TODO: Make sure the number of channels in the backend is equivalent
 -- to the number of tracks and not number of instruments in a song.
 
+test = do 
+  handle <- openFile "Template.java" ReadMode
+  contents <- hGetContents handle
+  print $ hmusicToJava track 120.0 "Trackity" contents
+
+-- Replaces template with song specifics.
+hmusicToJava :: Track -> Float -> String -> String -> String
+hmusicToJava track bpm name template =
+  (replace "%name%"       $ name)                  $
+  (replace "%bpm%"        $ show bpm)              $
+  (replace "%instrument%" $ javaInstruments track) $
+  (replace "%pattern%"    $ javaPattern     track) template
+
 -- Java-readable array of strings with sample paths.
 javaInstruments :: Track -> String
-javaInstruments = concat . (intersperse ", ") . listOfInstruments
+javaInstruments track =
+  "{\"" ++ (concat . (intersperse "\", \"") . listOfInstruments) track ++ "\"}"
 
 -- Java-readable instrument hit pattern.
 javaPattern :: Track -> String
