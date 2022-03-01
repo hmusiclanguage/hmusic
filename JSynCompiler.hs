@@ -10,14 +10,25 @@ import HMusic
 -- TODO: Make sure the number of channels in the backend is equivalent
 -- to the number of tracks and not number of instruments in a song.
 
-test = do 
+test = do
+  compileJSyn track1 120.0 "./" "Track"
+
+compileJSyn :: Track -> Float -> String -> String -> IO ()
+compileJSyn track bpm path name = do
+  template <- songTemplate
+  let song = genJSyn track bpm name template
+  writeFile (path ++ name ++ ".java") song
+
+-- Java class template for a compiled song.
+songTemplate :: IO String
+songTemplate = do
   handle <- openFile "Template.java" ReadMode
   contents <- hGetContents handle
-  print $ hmusicToJava track 120.0 "Trackity" contents
+  return contents
 
 -- Replaces template with song specifics.
-hmusicToJava :: Track -> Float -> String -> String -> String
-hmusicToJava track bpm name template =
+genJSyn :: Track -> Float -> String -> String -> String
+genJSyn track bpm name template =
   (replace "%name%"       $ name)                  $
   (replace "%bpm%"        $ show bpm)              $
   (replace "%instrument%" $ javaInstruments track) $

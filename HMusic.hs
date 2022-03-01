@@ -352,9 +352,9 @@ snare = O :| O :| X :| O
 ----------------- composition examples for paper
 
 track1 =  
-  MakeTrack "drum_bass_hard"          (X)
-  :|| MakeTrack "drum_snare_hard"     (O :| O :| X)
-  :|| MakeTrack "drum_cymbal_closed"  (X :| X :| X :| X)
+  MakeTrack "sample/drum_bass_hard.wav"          (X)
+  :|| MakeTrack "sample/drum_snare_hard.wav"     (O :| O :| X)
+  :|| MakeTrack "sample/drum_cymbal_closed.wav"  (X :| X :| X :| X)
 
 
 t1  =  

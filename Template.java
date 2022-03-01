@@ -1,4 +1,6 @@
-import Backend;
+import JSynBackend.Backend;
+
+import java.io.IOException;
 
 public class %name% {
   public static void main (String[] args)
