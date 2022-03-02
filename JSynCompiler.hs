@@ -53,7 +53,7 @@ javaPattern track =
     patterns = map translate $ listOfBeats track
     -- Translate sample names into array indexes.
     -- TODO: Learn about simplifiable class constraints and fix me.
-    translate :: Eq Instrument => [Instrument] -> [Int]
+    translate :: [Instrument] -> [Int]
     translate [] = []
     translate lst@(x:xs) =
       case lookup x dictionary of
