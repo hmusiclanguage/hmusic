@@ -1,0 +1,5 @@
+for attack can do like
+for (int i = STEP; i <= END; i += STEP) {
+  System.out.println(STEP, ", ", STEP / END, ", ");
+}
+into an envelope array.
