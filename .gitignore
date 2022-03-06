@@ -5,6 +5,7 @@
 sample/
 
 ##
+HMusic_temp.rb
 Utils.hs
 Track.java
 jsyn-20171016.jar
