@@ -8,10 +8,15 @@ import System.IO.Unsafe
 
 data MPattern = X | O | MPattern :|  MPattern
     deriving (Eq,Show)
-data Track = MakeTrack Instrument MPattern | MakeTrackE Instrument [Effect] MPattern| Track :|| Track 
+data Track = MakeTrack Instrument MPattern 
+            | MakeTrackE Instrument [Effect] MPattern 
+            | Track :|| Track
+            | Master [Effect] Track 
+            | MasterN String [Effect] Track
     deriving (Eq, Show)
 
-data Effect = Reverb Float | Amp Float
+data Effect = Reverb Float | Amp Float | Attack Float | Release Float | Rate Float | Sustain Float
+		| Start Float | Finish Float | Echo
     deriving (Eq,Show)
 
 type Instrument = String
@@ -63,23 +68,42 @@ sumTracks t1 t2 =
 
 joinTracks :: Int -> [(Track,Track)] -> Track
 joinTracks n [] = error "Empty list!"
-joinTracks n [(MakeTrack i1 dp1,MakeTrack i2 dp2)] = 
+joinTracks n [x] = joinTrack n x
+joinTracks n (x:xs) = joinTrack n x :|| joinTracks n xs
+
+joinTrack :: Int -> (Track,Track) -> Track
+joinTrack n (MakeTrack i1 dp1,MakeTrack i2 dp2) = 
   let sizedp = lengthDP dp1
   in  if (sizedp < n)
       then MakeTrack i1 (dp1 :| genSilence (n-sizedp) :| dp2)
-	  else MakeTrack i1 (dp1 :| dp2)
-joinTracks n ((MakeTrack i1 dp1,MakeTrack i2 dp2):xs) = 
-  let sizedp = lengthDP dp1
-  in  if (sizedp < n)
-      then MakeTrack i1 (dp1 :| genSilence (n-sizedp) :| dp2) :|| joinTracks n xs
-	  else MakeTrack i1 (dp1 :| dp2) :|| joinTracks n xs
-	  
+      else MakeTrack i1 (dp1 :| dp2)
+joinTrack n (MakeTrackE i1 e1 dp1,MakeTrackE i2 e2 dp2) = 
+      let sizedp = lengthDP dp1
+      in  if (sizedp < n)
+          then MakeTrackE i1 e1 (dp1 :| genSilence (n-sizedp) :| dp2)
+          else MakeTrackE i1 e1 (dp1 :| dp2)
+joinTrack n (MakeTrack i1 dp1,MakeTrackE i2 [] dp2) = 
+      let sizedp = lengthDP dp1
+      in  if (sizedp < n)
+          then MakeTrackE i1 [] (dp1 :| genSilence (n-sizedp) :| dp2)
+          else MakeTrackE i1 [] (dp1 :| dp2)
+joinTrack n (MakeTrackE i1 [] dp1,MakeTrack i2 dp2) = 
+      let sizedp = lengthDP dp1
+      in  if (sizedp < n)
+          then MakeTrackE i1 [] (dp1 :| genSilence (n-sizedp) :| dp2)
+          else MakeTrackE i1 [] (dp1 :| dp2)
+joinTrack n (Master e1 t1,Master e2 t2) = Master e1 (joinTrack n (t1, t2))
+joinTrack n (MasterN n1 e1 t1,MasterN n2 e2 t2) = MasterN n1 (e1++e2) (sumTracks t1 t2)
+joinTrack n (t11:||t12,t21:||t22) = joinTrack n (t11, t21) :|| joinTrack n (t12, t22)
 
 addSilenceToBegin :: Int -> Track -> Track
-addSilenceToBegin n  t@(MakeTrack i dp) =  MakeTrack i (genSilence n :| dp)
-addSilenceToBegin n (t@(MakeTrack i dp) :|| ts) = 
-   MakeTrack i (genSilence n :| dp) :|| addSilenceToBegin n ts
-addSilenceToBegin n (t1 :|| t2) = (addSilenceToBegin n t1) :|| (addSilenceToBegin n t1)
+addSilenceToBegin n (MakeTrack i dp) =  MakeTrack i (genSilence n :| dp)
+addSilenceToBegin n (MakeTrackE i e dp) =  MakeTrackE i e (genSilence n :| dp)
+--addSilenceToBegin n (t@(MakeTrack i dp) :|| ts) = 
+--   MakeTrack i (genSilence n :| dp) :|| addSilenceToBegin n ts
+addSilenceToBegin n (Master e t) = Master e (addSilenceToBegin n t)
+addSilenceToBegin n (MasterN na e t) = MasterN na e (addSilenceToBegin n t)
+addSilenceToBegin n (t1 :|| t2) = (addSilenceToBegin n t1) :|| (addSilenceToBegin n t2)
 
 	
 addSilenceToTheEnd :: Int -> Track -> Track
@@ -87,12 +111,19 @@ addSilenceToTheEnd n  t@(MakeTrack i dp) =
   let sizedp = lengthDP dp 
   in if (sizedp<n)
      then MakeTrack i (dp :| genSilence (n-sizedp))
-	 else t
-addSilenceToTheEnd n (t@(MakeTrack i dp) :|| ts) =
- let sizedp = lengthDP dp 
-  in if (sizedp<n)
-     then ((MakeTrack i (dp :| genSilence (n-sizedp))) :|| addSilenceToTheEnd n ts)
-	 else (t :|| addSilenceToTheEnd n ts)
+   else t
+addSilenceToTheEnd n  t@(MakeTrackE i e dp) = 
+    let sizedp = lengthDP dp 
+    in if (sizedp<n)
+       then MakeTrackE i e (dp :| genSilence (n-sizedp))
+     else t   
+--addSilenceToTheEnd n (t@(MakeTrack i dp) :|| ts) =
+-- let sizedp = lengthDP dp 
+-- in if (sizedp<n)
+--     then ((MakeTrack i (dp :| genSilence (n-sizedp))) :|| addSilenceToTheEnd n ts)
+--	 else (t :|| addSilenceToTheEnd n ts)
+addSilenceToTheEnd n (Master e t) = Master e (addSilenceToTheEnd n t)
+addSilenceToTheEnd n (MasterN na e t) = MasterN na e (addSilenceToTheEnd n t)
 addSilenceToTheEnd n (t1 :|| t2) = (addSilenceToTheEnd n t1) :|| (addSilenceToTheEnd n t1)
 
 
@@ -103,93 +134,124 @@ addSilenceToTheEnd n (t1 :|| t2) = (addSilenceToTheEnd n t1) :|| (addSilenceToTh
 -- from t1 
 -- * List of tuples containg matching tracks (t1, t2)
 
+-- Recursion is on the first argument. For all tracks in t1, try to find a matching
+-- track in t2
+--
+
 separateTracks :: Track -> Track -> (Maybe Track , Maybe Track,  [(Track,Track)])
-separateTracks t@(MakeTrack i dp) t2 = case getTrack i t2 of
-	Nothing -> (Just t, Just t2,[])
-	Just tr2  -> let (b,mt) = removeTrack i t2 
-	             in (Nothing, mt, [(t,tr2)])
-separateTracks 	(t@(MakeTrack i dp) :|| ts) t2 =  case getTrack i t2 of
-	Nothing -> case separateTracks ts t2 of
-  		(Nothing, l1,l2) -> (Just t,l1,l2)
-		(Just tr,l1,l2) -> (Just (t:||tr),l1,l2)
-	Just tr -> 	case removeTrack i t2 of{
-	              (_,Nothing)   -> (Just ts,Nothing,[(t,tr)]);
-				  (_, Just nt2) ->  (rt1,rt2,(t,tr):lr)
-			                      where (rt1,rt2,lr) = separateTracks ts nt2}
-			  --let (rt1,rt2,lr) = separateTracks ts nt2
-				    --                in (rt1,rt2,(t,tr):lr)
+separateTracks t1@(MakeTrack i dp) t2 = case getTrack t1 t2 of
+	Nothing -> (Just t1, Just t2,[])
+	Just tr2  -> let (b,mt) = removeTrack t1 t2 
+               in (Nothing, mt, [(t1,tr2)])
+separateTracks t1@(MakeTrackE i e dp) t2 = case getTrack t1 t2 of
+	Nothing -> (Just t1, Just t2,[])
+	Just tr2  -> let (b,mt) = removeTrack t1 t2 
+	             in (Nothing, mt, [(t1,tr2)])
+separateTracks t1@(Master e t) t2 = case getTrack t1 t2 of
+     Nothing -> (Just t1, Just t2, [])
+     Just tr2 -> let (b,mt) = removeTrack t1 t2 
+                 in (Nothing, mt, [(t1,tr2)])
+separateTracks t1@(MasterN n e t) t2 = case getTrack t1 t2 of
+     Nothing -> (Just t1, Just t2, [])
+     Just tr2 -> let (b,mt) = removeTrack t1 t2 
+                 in (Nothing, mt, [(t1,tr2)])
 separateTracks (ta :|| tb) t2 = case separateTracks ta t2 of
---	(Nothing,Nothing,l) -> let (rt1,rt2,lr) = separateTracks tb t2
---	                       in (rt1,rts, l ++ lr)
---	(Nothing, Just r, l) -> case removeListOfTracks l t2	
 	(tr1,tr2,list) -> case removeListOfTracks list t2 of
 						Nothing -> (joinMaybeTracks tr1 (Just tb), tr2,list)
 						Just ntr2 -> let (a,b,c) = separateTracks tb ntr2
-						             in (joinMaybeTracks tr1 a, joinMaybeTracks tr2 b, list ++c)
+						             in (joinMaybeTracks tr1 a, b, list ++c)
 
 joinMaybeTracks :: Maybe Track -> Maybe Track -> Maybe Track
 joinMaybeTracks Nothing a = a
 joinMaybeTracks t@(Just tr) Nothing = t
 joinMaybeTracks (Just tr1) (Just tr2) = Just (tr1 :|| tr2)
-		
+
+--
 removeListOfTracks :: [(Track,Track)] -> Track -> Maybe Track
 removeListOfTracks [] t = Just t
-removeListOfTracks ((MakeTrack i p,_):xs) t2 = case removeTrack i t2 of	
-			(False,_) -> removeListOfTracks xs t2
-			(True,Nothing) -> Nothing
-			(True,Just t) -> removeListOfTracks xs t
+removeListOfTracks ((t1,_):xs) t2 = case removeTrack t1 t2 of	
+      (False,_) -> removeListOfTracks xs t2
+      (True,Nothing) -> Nothing
+      (True,Just t) -> removeListOfTracks xs t 
+
+---removeListOfTracks ((t@(MakeTrackE i e p),_):xs) t2 = case removeTrack t t2 of	
+---			(False,_) -> removeListOfTracks xs t2
+---			(True,Nothing) -> Nothing
+---			(True,Just t) -> removeListOfTracks xs t
 
 
 
-removeTracks :: Instrument -> Track -> Maybe Track
-removeTracks i1 t@(MakeTrack i2 dp1)
-    | i1 == i2 = Nothing
-    | otherwise = Just t
-removeTracks i1 (t@(MakeTrack i2 dp1) :|| ts)
-    | i1 == i2 = removeTracks i1 ts
-    | otherwise = case getTrack i1 ts of
-		Nothing -> Just t
-		Just tr -> Just (t :|| tr)
-removeTracks i1 (t1 :|| t2) = case removeTracks i1 t1 of
-				Nothing -> removeTracks i1 t2
-				Just tr1 -> case removeTracks i1 t2 of
-						Nothing -> Just tr1
-						Just tr2 -> Just (tr1 :|| tr2)
 
+--- 
+--- Takes a base case track t1 and a possibly multi-track t2
+--- and returns a track from an equivalent track from t2.
+--- The notion of equivalence is defined in the sameTrack function:
+-- if t2 has the same instrument
+--- as t1 (simple track), same instrument and  same effects (in the case
+--  of a track with effects), 
+---- and in the case of a Master, same effects and same track using
+--- the equivalence notion expressed above
 
-getTracks :: Instrument -> Track -> [Track]
-getTracks i1 t@(MakeTrack i2 dp1)
-    | i1 == i2 = [t]
-    | otherwise = []
-getTracks i1 (t@(MakeTrack i2 dp1) :|| ts)
-    | i1 == i2 = [t]
-    | otherwise = getTracks i1 ts
-getTracks i1 (t1 :|| t2) = (getTracks i1 t1) ++ (getTracks i1 t2)
-
-
-																 
-getTrack :: Instrument -> Track -> Maybe Track
-getTrack i1 t@(MakeTrack i2 dp1)
-	| i1 == i2 = Just t
+getTrack :: Track -> Track -> Maybe Track
+getTrack t1 t2@(MakeTrack i2 dp2)
+    | sameTrack t1 t2 = Just t2
     | otherwise = Nothing
-getTrack i1 (t@(MakeTrack i2 dp1) :|| ts)
-	| i1 == i2 = Just t
-    | otherwise = getTrack i1 ts
+getTrack t1 t2@(MakeTrackE i2 e2 dp2)
+    | sameTrack t1 t2 = Just t2
+    | otherwise = Nothing
+getTrack t1 t2@(Master _ _)
+    | sameTrack t1 t2  = Just t2
+    | otherwise = Nothing
+getTrack t1 t2@(MasterN _ _ _)
+    | sameTrack t1 t2  = Just t2
+    | otherwise = Nothing
+getTrack i1 (t1 :|| t2) = case getTrack i1 t1 of	
+    Just t -> Just t
+    Nothing -> getTrack i1 t2
+
+
+
+
+{- getTrack :: Track -> Track -> Maybe Track
+getTrack (MakeTrack i1 dp1) t@(MakeTrack i2 dp2)
+    | i1 == i2 = Just t
+    | otherwise = Nothing
+getTrack (MakeTrackE i1 e1 dp1) t@(MakeTrackE i2 e2 dp2)
+    | i1 == i2 && e1 == e2 = Just t
+    | otherwise = Nothing
+getTrack (MakeTrackE i1 e1 dp1) t@(MakeTrack i2 dp2)
+    | i1 == i2 && e1 == [] = Just t
+    | otherwise = Nothing
+getTrack (MakeTrack i1 dp1) t@(MakeTrackE i2 e dp2)
+    | i1 == i2 && e == [] = Just t
+    | otherwise = Nothing
+getTrack t1@(Master _ _) t2@(Master _ _)
+    | sameTrack t1 t2  = Just t2
+    | otherwise = Nothing
 getTrack i1 (t1 :|| t2) = case getTrack i1 t1 of	
 							Just t -> Just t
 							Nothing -> getTrack i1 t2
 
-
-removeTrack :: Instrument -> Track -> (Bool,Maybe Track)
-removeTrack i1 t@(MakeTrack i2 dp1)
-	| i1 == i2 = (True,Nothing)
-    | otherwise = (False,Just t)
-removeTrack i1 (t@(MakeTrack i2 dp1) :|| ts)
-	| i1 == i2 = (True, Just ts)
-    | otherwise = case removeTrack i1 ts of
-					(True,Nothing) -> (True, Just t)
-					(True, Just tr) -> (True, Just (t:|| tr) )
-					(False, _) -> (False, Just (t:||ts))
+ -}
+removeTrack :: Track -> Track -> (Bool,Maybe Track)
+removeTrack t1@(MakeTrack i1 dp1) t2@(MakeTrack i2 dp2)
+    | i1 == i2 = (True,Nothing)
+    | otherwise = (False,Just t2)
+removeTrack t1@(MakeTrackE i1 e dp1) t2@(MakeTrack i2 dp2)
+    | i1 == i2 && e== [] = (True,Nothing)
+    | otherwise = (False,Just t2)
+removeTrack t1@(MakeTrackE i1 e1 dp1) t2@(MakeTrackE i2 e2 dp2)
+    | i1 == i2 && e1==e2 = (True,Nothing)
+    | otherwise = (False,Just t2)
+removeTrack t1@(MakeTrack i1 dp1) t2@(MakeTrackE i2 e dp2)
+    | i1 == i2 && e== [] = (True,Nothing)
+    | otherwise = (False,Just t2)
+removeTrack t1@(Master _ _) t2@(Master _ _)
+    | sameTrack t1 t2  = (True,Nothing)
+    | otherwise = (False,Just t2)
+removeTrack t1@(MasterN _ _ _) t2@(MasterN _ _ _)
+    | sameTrack t1 t2  = (True,Nothing)
+    | otherwise = (False,Just t2)
 removeTrack i (t1 :|| t2) = case removeTrack i t1 of
 					(True,Nothing) -> (True, Just t2)
 					(True, Just tr) -> (True, Just (tr :|| t2) )
@@ -258,19 +320,61 @@ insertTrack sizetr1 sizetr2 (MakeTrack i dp1) (MakeTrack i2 dp2)
 
 -}
 
+-- Definition of "same track" used for track composition:
+-- Tracks are the same if they have the same Instrument, i.e.,
+-- play the same sample
+
+
+sameTrack :: Track -> Track -> Bool
+sameTrack (MakeTrack i1 p1) (MakeTrack i2 p2)
+          | i1 == i2 = True
+          | otherwise = False
+sameTrack (MakeTrackE i1 e1 p1) (MakeTrackE i2 e2 p2)
+          | i1 == i2 && e1 == e2 = True
+          | otherwise = False
+sameTrack (Master e1 t1) (Master e2 t2)
+          | e1 == e2 = sameTrack t1 t2
+          | otherwise = False
+sameTrack (MasterN n1 e1 t1) (MasterN n2 e2 t2)
+          | n1 == n2 = True
+          | otherwise = False
+sameTrack (MakeTrackE i1 e1 dp1) t@(MakeTrack i2 dp2)
+          | i1 == i2 && e1 == [] = True
+          | otherwise = False
+sameTrack (MakeTrack i1 dp1) t@(MakeTrackE i2 e dp2)
+          | i1 == i2 && e == [] = True
+          | otherwise = False
+sameTrack (MakeTrack i1 p1) t = False
+sameTrack (MakeTrackE i1 e1 p1) t = False
+sameTrack (Master e1 t1) t = False 
+sameTrack (MasterN n1 e1 t1) t = False 
+sameTrack (t11 :|| t12) (t21 :|| t22) = sameTrack t11 t21 && sameTrack t12 t22
+sameTrack (t11 :|| t12) t = False
+
+
+samePattern :: MPattern -> MPattern -> Bool
+samePattern X X = True
+samePattern O O = True
+samePattern X p = False
+samePattern O p = False
+samePattern (p11 :| p12) (p21 :| p22) = samePattern p11 p21 && samePattern p12 p22
+
+
 
 headTr :: Track -> Track
 headTr t@(MakeTrack i p)  = t
 headTr t@(MakeTrackE i e p)  = t
-headTr (t@(MakeTrack i p) :|| p2) = t
-headTr (t@(MakeTrackE i e p) :|| p2) = t 
+headTr t@(Master e tr) = t 
+--headTr (t@(MakeTrack i p) :|| p2) = t
+--headTr (t@(MakeTrackE i e p) :|| p2) = t
 headTr (p1 :|| p2) = headTr p1
 
 tailTr :: Track -> Track
 tailTr (MakeTrack i p)  = error "tail of a single Track"
 tailTr (MakeTrackE i e p)  = error "tail of a single Track"
-tailTr (MakeTrack i p :|| p2) = p2
-tailTr (MakeTrackE i e p :|| p2) = p2
+tailTr (Master e t) = error "tail of a single Track"
+--tailTr (MakeTrack i p :|| p2) = p2
+--tailTr (MakeTrackE i e p :|| p2) = p2
 tailTr (p1 :|| p2) = tailTr p1
 
 -- repeats a multi track n times
@@ -286,31 +390,40 @@ n |* t = multTrack (lengthTrack t) n t
 --				 False -> MakeTrack i (dp2 :| dp)
 --	|otherwise = MakeTrack i2 dp2 :||  (MakeTrack i  ((genSilence size):| dp))
 
+--- THIS IS WRONG, WE NEED CASE T1 :|| T2
 
 multTrack :: Int -> Int -> Track -> Track
 multTrack size n (MakeTrack i dp) = let sizedp = lengthDP dp 
                                     in  case (sizedp < size) of
-										True -> MakeTrack i (n .* (dp :| genSilence (size - sizedp)))
-										False -> MakeTrack i (n .* dp)
+                                          True -> MakeTrack i (n .* (dp :| genSilence (size - sizedp)))
+                                          False -> MakeTrack i (n .* dp)
 multTrack size n (MakeTrackE i e dp) = let sizedp = lengthDP dp 
                                     in  case (sizedp < size) of
-										True -> MakeTrackE i e (n .* (dp :| genSilence (size - sizedp)))
-										False -> MakeTrackE i e (n .* dp)
+                                          True -> MakeTrackE i e (n .* (dp :| genSilence (size - sizedp)))
+                                          False -> MakeTrackE i e (n .* dp)
+multTrack size n (Master e t) = Master e (multTrack size n t)
+multTrack size n (MasterN na e t) = MasterN na e (multTrack size n t)
+multTrack size n (t1 :|| t2) = multTrack size n t1 :|| multTrack size n t2
+
+{-
 multTrack size n ((MakeTrack i dp):|| t) = let sizedp = lengthDP dp 
                                            in  case (sizedp < size) of
-												True -> (MakeTrack i (n .* (dp :| genSilence (size - sizedp)))) :|| multTrack size n t
-												False -> (MakeTrack i (n .* dp)) :|| multTrack size n t
+                                                True -> (MakeTrack i (n .* (dp :| genSilence (size - sizedp)))) :|| multTrack size n t
+                                                False -> (MakeTrack i (n .* dp)) :|| multTrack size n t
 multTrack size n ((MakeTrackE i e dp):|| t) = let sizedp = lengthDP dp 
                                            in  case (sizedp < size) of
-												True -> (MakeTrackE i e (n .* (dp :| genSilence (size - sizedp)))) :|| multTrack size n t
-												False -> (MakeTrackE i e (n .* dp)) :|| multTrack size n t
+                                                True -> (MakeTrackE i e (n .* (dp :| genSilence (size - sizedp)))) :|| multTrack size n t
+                                                False -> (MakeTrackE i e (n .* dp)) :|| multTrack size n t
 
+-} 
 
 genSilence :: Int -> MPattern
 genSilence n = takeBeats n infiniteSilence
 	where	infiniteSilence = O :| infiniteSilence
 
 -----------------------
+----- The clapping music by Steve Reich
+-----------------------------
 
 clappingPat :: MPattern
 clappingPat = X :| X :| X :| O :| X :| X :| O :| X :| O :| X :| X :| O
@@ -349,6 +462,7 @@ kick =  X :| O :| O :| O
 
 snare = O :| O :| X :| O
 
+-----------------------------------------
 ----------------- composition examples for paper
 
 track1 =  
@@ -360,6 +474,18 @@ track1 =
 t1  =  
   MakeTrack "drum_bass_hard"          (X :| X)
   :|| MakeTrack "drum_snare_hard"     (O :| O :| X :| O)
+
+te1 =  
+    MakeTrack "drum_bass_hard"          (X)
+    :|| MakeTrackE "drum_snare_hard"  [Reverb 1.0, Amp 1.0]   (O :| O :| X)
+    :|| MakeTrack "drum_cymbal_closed"  (X :| X :| X :| X)
+  
+te2  =  
+    MakeTrackE "drum_bass_hard" [Reverb 1.0]         (X :| X)
+    :|| MakeTrack "drum_snare_hard"     (O :| O :| X :| O)  
+
+tm1 = MakeTrack "drum_bass_hard" X
+    :|| Master [Reverb 1.0] te2
   
 t2 =  MakeTrack "drum_cymbal_closed"  (X :| X :| X :| X)
 
@@ -369,7 +495,12 @@ track2 =  MakeTrack "BassDrum"  (X :| O :| O :| O)
   :|| MakeTrack "AcousticSnare" (O :| O :| X :| O)
   :|| MakeTrack "ClosedHiHat"   (X :| O :| X )
   :|| MakeTrack "Cowbell"       (X)
-  
+
+trackcomp =  
+ MakeTrack "kick"                                               X
+ :|| MakeTrackE "snare" [Reverb 0.5]                           (O :| O :| X)
+ :|| MakeTrackE "hihat" [Attack 0.1, Sustain 0.3, Release 0.1] (X :| X :| X :| X)
+ :|| MakeTrack "guitar"                                         X
 
 track =  
  MakeTrack "kick"       X
@@ -476,6 +607,96 @@ rock =
 
  -}
 
+
+drumAndBass2 = 
+  MakeTrack "drum_cymbal_open"        (O :| X :| O :| X :| O :| X :| O :| X :| O :| X :| X :| X :| O :| X :| O :| X)
+ :|| MakeTrack "drum_cymbal_closed"   (X :| O :| X :| O :| X :| O :| X :| O :| X :| O :| X :| O :| X :| O :| X :| O)
+ :|| MakeTrack "drum_cymbal_hard"     (X :| O :| X :| O :| X :| O :| X :| O :| X :| O :| X :| O :| X :| O :| X :| O)
+ :|| MakeTrack "drum_snare_hard"      (O :| X :| O :| O :| O :| O :| O :| O :| X :| O :| O :| O :| X :| X :| X :| X)
+ :|| MakeTrack "drum_bass_hard"       (X :| O :| O :| O :| O :| O :| X :| O :| O :| O :| O :| O :| O )
+
+drumAndBass1 =
+   MakeTrack "drum_snare_hard"  (O :| O :| O :| O :| X :| O :| O :| O :| O :| O :| O :| O :| X :| O :| O :| O)
+  :|| MakeTrack "drum_bass_hard"   (X :| O :| O :| O :| O :| O :| O :| O :| O :| O :| X :| O :| O )
+
+walkThisWay = 
+    MakeTrack "drum_cymbal_closed"       (O :| O :| O :| O :| X :| O :| O :| X :| X :| O :| X :| O :| X :| O :| O :| O)
+    :|| MakeTrack "drum_cymbal_hard"   X
+    :|| MakeTrack "drum_snare_hard" (O :| O :| O :| O :| X :| O :| O :| O :| O :| O :| O :| O :| X :| O :| O :| O)
+    :|| MakeTrack  "drum_bass_hard"     (X :| O :| O :| O :| O :| O :| O :| X :| X :| O :| X :| O :| O )
+  
+
+
+
+trackD =MakeTrack  "ambi_drone"    (X :| O :| O :| O :| O :| O :| O :| O :| O :| O :| O :| O :| O :| O :| O :| O)
+
+sacomp = 
+    MakeTrack "drum_snare_hard" (O :| O :| O :| O :| X :| O :| O :| O :| O :| O :| O :| O :| X :| O :| O :| O)
+    :|| MakeTrack  "drum_bass_hard"     (X :| O :| O :| O :| O :| O :| O :| X :| X :| O :| X :| O :| O )
+
+cymbal =  MakeTrack "drum_cymbal_closed"   (X :| O :| X :| O :| X :| X :| X :| X :| X :| X :| X :| X :| O :| X :| O :| X)
+  
+flute = MakeTrack ":flute.wav" (X :| genSilence 15)
+        :|| MakeTrack ":flute.wav" (X :| genSilence 15)
+
+alo = MakeTrack ":alo.wav" (X:|genSilence 15)   :|| MakeTrack ":alo.wav" (X:|genSilence 15) 
+
+tough = MakeTrack ":tough.wav" (X :| genSilence 15) :|| MakeTrack ":tough.wav" (X :| genSilence 15)
+
+quebradera = (auau  :|| sacomp :|| alo)
+
+auau = MakeTrack ":auau.wav" (genSilence 15 :| X) :|| MakeTrack ":auau.wav" (genSilence 15 :| X)
+
+final = (2 |* sacomp) :|| alo :|| auau
+
+lengthmp :: MPattern -> Int
+lengthmp (x:|y) = lengthmp x + 
+                   lengthmp y 
+lengthmp _ = 1
+
+mapTrack :: (Track -> Track) -> Track -> Track
+mapTrack f (t1 :|| t2) = mapTrack f t1 :|| mapTrack f t2
+mapTrack f t = f t
+
+drumsN :: Track
+drumsN 
+   = MasterN "drums" [Amp 0.2] te1
+
+
+subsInstr :: Instrument -> Instrument -> 
+    Track -> Track
+subsInstr i1 i2 t@(MakeTrack i p)
+  | i == i1 = MakeTrack i2 p
+  | otherwise = t
+subsInstr i1 i2 t = t
+
+
+changeMaster :: String -> [Effect] -> Track -> Track
+changeMaster name e t@(MasterN n em tm) 
+  | name == n = MasterN n e tm
+  | otherwise = t
+changeMaster i e t = t
+
+if' :: Bool -> a -> a -> a
+if' True  x _ = x
+if' False _ y = y
+
+infixr 1 ?
+(?) :: Bool -> a -> a -> a
+(?) = if'
+
+subsEffects :: [Effect] -> [Effect] -> Track -> Track
+subsEffects e1 e2 t@(MakeTrackE i e f)
+  | e1 == e = MakeTrackE i e2 f
+  | otherwise = t
+subsEffects e1 e2 t = t
+
+changeTrack :: Instrument -> [Effect] -> Track -> Track
+changeTrack i e t@(MakeTrack it p) 
+  | i == it = MakeTrackE i e p
+  | otherwise = t
+changeTrack i e (t1:||t2) = changeTrack i e t1 :|| changeTrack i e t2
+
 lengthDP :: MPattern -> Int
 lengthDP O = 1
 lengthDP X = 1
@@ -487,6 +708,8 @@ lengthDP (x:|y) = lengthDP x + lengthDP y
 lengthTrack :: Track -> Int
 lengthTrack (MakeTrack _ dp) = lengthDP dp
 lengthTrack (MakeTrackE _ e dp) = lengthDP dp
+lengthTrack (Master e t) = lengthTrack t
+lengthTrack (MasterN n e t) = lengthTrack t
 lengthTrack (t1 :|| t2) = max (lengthTrack t1) (lengthTrack t2)
 
 headDP :: MPattern -> MPattern
@@ -529,43 +752,55 @@ takeBeatsT n (x:|y) = let (db,r) = takeBeatsT n x
 ------------------------------------------------------------------------------------------------------------------------------------
 
 
-tailD :: MPattern -> MPattern
-tailD (O:|p) = p 
-tailD (X:|p) = p
-tailD (x:|y) = tailD x :| y
 
-getBeat :: Track -> [Instrument]
-getBeat (MakeTrack i O)=[]
-getBeat (MakeTrack i X)= [i]
-getBeat (MakeTrack i (X:|p))= [i]
-getBeat (MakeTrack i (O:|p))= []
-getBeat (MakeTrack i (x:| y)) = getBeat (MakeTrack i x)
-getBeat (MakeTrack i X :|| t)= i:getBeat t
-getBeat (MakeTrack i O :|| t)= getBeat t
-getBeat ((MakeTrack i (O:|p)) :|| t)= getBeat t
-getBeat ((MakeTrack i (X:|p)) :|| t)= i: getBeat t
-getBeat ((MakeTrack i (x:|y)) :|| t)= getBeat (MakeTrack i x) ++  getBeat t
+getBeat :: Track -> [(Maybe [Effect], Instrument)]
+getBeat (MakeTrack i p)
+    | isAHit p = [(Nothing,i)]
+    | otherwise = []
+getBeat (MakeTrackE i e p)
+    | isAHit p = [(Just e,i)]
+    | otherwise = []
+getBeat (Master e t) = map (addEffects e) (getBeat t)
+  where addEffects :: [Effect] -> (Maybe [Effect], Instrument) -> (Maybe [Effect], Instrument)
+        addEffects e (Nothing,i) = (Just e, i)
+        addEffects e (Just et,i) = (Just (e++et),i)
 getBeat (t1 :|| t2) = getBeat t1 ++ getBeat t2
 --getBeat ((MakeTrack i dp))
-removeBeat :: Track -> Maybe Track
-removeBeat (MakeTrack i O)= Nothing
-removeBeat (MakeTrack i X)= Nothing
-removeBeat (MakeTrack i (X:|p))= Just (MakeTrack i p)
-removeBeat (MakeTrack i (O:|p))= Just (MakeTrack i p)
-removeBeat (MakeTrack i (x:|y))= Just (MakeTrack i (tailD (x:|y)))
-removeBeat (MakeTrack i X :|| t)= removeBeat t 
-removeBeat (MakeTrack i O :|| t)= removeBeat t 
-removeBeat ((MakeTrack i (x:|p)) :|| t)= case removeBeat t of
-    Just tf -> Just $ MakeTrack i (tailD (x:|p)) :|| tf
-    Nothing -> Just $ MakeTrack i (tailD (x:|p))
-removeBeat (t1 :|| t2)= case removeBeat t1 of
-    Just tf1 -> case removeBeat t2 of
+
+
+
+
+isAHit :: MPattern -> Bool
+isAHit O = False
+isAHit X = True
+isAHit (p1 :| p2) = isAHit p1
+
+removeBeat :: MPattern -> Maybe MPattern
+removeBeat O = Nothing
+removeBeat X = Nothing
+removeBeat (p1 :| p2) = case removeBeat p1 of
+    Just np1 ->  Just $ np1 :| p2
+    Nothing -> Just p2
+
+
+removeBeatTrack :: Track -> Maybe Track
+removeBeatTrack (MakeTrack i p) = case removeBeat p of
+	Nothing -> Nothing
+	Just pf -> Just $ MakeTrack i pf
+removeBeatTrack (MakeTrackE i e p) = case removeBeat p of
+	Nothing -> Nothing
+	Just pf -> Just $ MakeTrackE i e pf
+removeBeatTrack (Master e t) = case removeBeatTrack t of
+	Nothing -> Nothing
+	Just tf -> Just $ Master e tf
+removeBeatTrack (t1 :|| t2)= case removeBeatTrack t1 of
+    Just tf1 -> case removeBeatTrack t2 of
                  Just tf2 -> Just $ tf1 :|| tf2
                  Nothing -> Just tf1 
-    Nothing -> removeBeat t2 
+    Nothing -> removeBeatTrack t2 
 
-listOfBeats :: Track -> [[Instrument]]
-listOfBeats t = case removeBeat t of
+listOfBeats :: Track -> [[(Maybe [Effect], Instrument)]]
+listOfBeats t = case removeBeatTrack t of
 					Just tr -> beat : listOfBeats tr
 					Nothing -> [beat]
    where beat = getBeat t
@@ -580,17 +815,54 @@ listOfBeats t = case removeBeat t of
 musicState :: IORef (Maybe Track)
 musicState = unsafePerformIO (newIORef Nothing)
 
+musicBPM :: IORef (Maybe Float)
+musicBPM = unsafePerformIO (newIORef Nothing)
+
 genSonicPI :: Float  -> Track -> String
 genSonicPI time track = genSonicPI_ time (listOfBeats track)
 
-genSonicPI_ :: Float -> [[Instrument]] -> String
+genSonicPI_ :: Float -> [[(Maybe [Effect], Instrument)]] -> String
 genSonicPI_ time [] = ""
 genSonicPI_ time (i:xs) = genNotes i ++ "\tsleep " ++ show time ++ "\n" ++ genSonicPI_ time xs
 
-genNotes :: [Instrument] -> String
+genNotes :: [(Maybe [Effect], Instrument)] -> String
 genNotes [] = ""
-genNotes (i:xs) = "\tsample :" ++ i++ ", rate: 1\n" ++ genNotes xs
+genNotes ((Nothing,i):xs)
+  | head i == ':' = "\tsample \"/s/" ++ tail i++ "\"\n" ++ genNotes xs
+  | otherwise = "\tsample :" ++ i++ "\n" ++ genNotes xs
+genNotes ((Just e,i):xs) 
+  | head i == ':' = genWithEffect e ++"\tsample " ++"/s/\"" ++ tail i++"\"" ++" "++ genEnds e ++"\n" ++ genNotes xs
+  | otherwise = genWithEffect e ++"\tsample :" ++ i++ " "++ genEnds e ++"\n" ++ genNotes xs
+-- genNotes ((Just e,i):xs) = "\tsample :" ++ i++ ", "++ genEffects e ++"\n" ++ genNotes xs
 
+
+genWithEffect :: [Effect] -> String
+genWithEffect [] = ""
+genWithEffect (e:xs) = "with_fx :" ++ effectToString e ++ " do\n"++ genWithEffect xs
+
+genEnds :: [Effect] -> String
+genEnds [] = ""
+genEnds (x:xs) = "\nend" ++ genEnds xs
+
+--genEffects :: Maybe
+
+
+genEffects :: [Effect] -> String
+genEffects [] = ""
+genEffects [e] = effectToString e
+genEffects (e:xs) = effectToString e ++ ", " ++ genEffects xs
+
+effectToString :: Effect -> String
+effectToString (Reverb n) = "reverb" 
+effectToString (Amp n) = "amp: " ++ show n
+effectToString (Attack n) = "attack: " ++ show n
+effectToString (Release n) = "release: " ++ show n
+effectToString (Rate n) = "rate: " ++ show n
+effectToString (Sustain n) = "sustain: " ++ show n
+effectToString (Start n) = "start: " ++ show n
+effectToString (Finish n) = "finish: " ++ show n
+effectToString Echo = "echo" 
+    
 
 play :: Float -> Track  -> IO ()
 play bpm track = do
@@ -605,7 +877,8 @@ play bpm track = do
 loop :: Float -> Track  -> IO ()
 loop bpm track = do
         let sizeTrack = lengthTrack track
-        writeIORef musicState (Just track) 
+        writeIORef musicState (Just track)
+        writeIORef musicBPM (Just (60/bpm)) 
         
 	writeFile "HMusic_temp.rb" $ "live_loop :hmusic do\n" ++ genSonicPI (60/bpm) track ++ "end"
 	v <- system $ sonicPiToolPath++"sonic-pi-tool eval-file HMusic_temp.rb"
@@ -616,12 +889,16 @@ applyToMusic ftrack = do
     v <- readIORef musicState
     case v of
         Just t -> do 
-                let newTrack = ftrack t
-                print $ show newTrack
-                writeIORef musicState (Just newTrack)
-		writeFile "HMusic_temp.rb" $ "live_loop :hmusic do\n" ++ genSonicPI 0.3 newTrack ++ "end"
-		v <- system $ sonicPiToolPath ++ "sonic-pi-tool eval-file HMusic_temp.rb"
-    		print $ show v
+                  mbpm <- readIORef musicBPM
+                  case mbpm of
+                    Just bpm -> do
+                     let newTrack = ftrack t
+                     --print $ show newTrack
+                     writeIORef musicState (Just newTrack)
+                     writeFile "HMusic_temp.rb" $ "live_loop :hmusic do\n" ++ genSonicPI bpm newTrack ++ "end"
+                     r <-system $ sonicPiToolPath ++ "sonic-pi-tool eval-file HMusic_temp.rb"
+                     print $ show r
+                    --Nothing -> error "No bpm for the running track" 
         Nothing -> error "No running track to be modified"
 
 startMusicServer :: IO ()
