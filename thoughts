@@ -17,3 +17,8 @@ maybe could have like an addTrack method to the backend and it accepts a
 function unitgen as optional argument, so when it's there put it inbetween so
 it goes something like addTrack(new int [] %pattern%, %effect%). then i'd need
 to use the separate tracks for that. ask teacher about this
+
+okay so actually i think could do something like separateTracks and then
+for each in the list of tracks check their sample and effect and instead of
+the loadSamples function, use one that receives a sample and an effect
+maybe would need to create a separate class Instrument for that? idk
