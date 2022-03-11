@@ -4,16 +4,6 @@ for (int i = STEP; i <= END; i += STEP) {
 }
 into an envelope array.
 
-
-to play with effects need to have a way to know which instruments have effects,
-maybe make a class Instrument that knows its sample and whatever effect is
-attached to it?
-
-OR create a function for each effect or find a unitgen idk and do like the
-sonic pi backend and do something like each time a sample needs to play with an
-effect, connect it to a function player or something
-
-maybe could have like an addTrack method to the backend and it accepts a
-function unitgen as optional argument, so when it's there put it inbetween so
-it goes something like addTrack(new int [] %pattern%, %effect%). then i'd need
-to use the separate tracks for that. ask teacher about this
+figure out a way to attach effects to the instruments,
+something like addEffect(index, Function ()) and inside
+use a function evaluator to go inbetween the sample and the line
