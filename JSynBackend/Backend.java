@@ -16,14 +16,14 @@ public class Backend {
   private Synthesizer synth;
   private LineOut lineOut;
   /*
-  * NOTE: the number of channels should be independent from the
-  * number of actual samples and instead be equivalent to the
-  * number of tracks in the HMusic song.
-  */
+   * TODO: The number of channels should be independent from the
+   * number of actual samples and instead be equal to the amount of
+   * tracks in the song.
+   */
   private VariableRateDataReader[] channels;
   private FloatSample[] samples;
 
-  public Backend()
+  public Backend ()
   {
     synth = JSyn.createSynthesizer();
     synth.add(lineOut = new LineOut());
@@ -35,7 +35,7 @@ public class Backend {
     SampleLoader.setJavaSoundPreferred(false);
     samples = new FloatSample[paths.length];
     for (int i = 0; i < paths.length; i++) {
-      File file = new File(paths[i]);
+      File file = new File("sample/" + paths[i] + ".wav");
       samples[i] = SampleLoader.loadFloatSample(file);
     }
 
@@ -73,12 +73,18 @@ public class Backend {
       double time = synth.getCurrentTime();
       do {
         for (int[] beat : pattern) {  /* For each beat in a pattern, */
-          for (int sample : beat) { /* play all the samples in that beat. */
+          for (int sample : beat) {   /* play all the samples in that beat. */
+            /*
+             * TODO: decouple channels from samples and instead queue on
+             * whichever channels are free (maybe have a counter for how many
+             * channels are used, so i = 0 would queue on the first channel,
+             * up to i = chnamt - 1).
+             */
             channels[sample].dataQueue.queue(samples[sample],
-                                            0,
-                                            /* Sample cutoff at the start of next beat. */
-                                            (Math.min((int) (samples[sample].getFrameRate() * songRate),
-                                                      samples[sample].getNumFrames())));
+                                             0,
+                                             /* Sample cutoff at the start of next beat. */
+                                             (Math.min((int) (samples[sample].getFrameRate() * songRate),
+                                                       samples[sample].getNumFrames())));
           }
           /* Then wait until next beat. */
           time += songRate;

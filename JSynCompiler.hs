@@ -7,8 +7,14 @@ import System.IO
 
 import HMusic
 
--- TODO: Make sure the number of channels in the backend is equivalent
--- to the number of tracks and not number of instruments in a song.
+type EInstrument = (Maybe [Effect], Instrument)
+
+-- TODO: Make sure the sample isn't loaded multiple times into memory in case
+-- it is duplicated (e.g. there's a guitar.wav with echo and one without).
+
+testTrack =
+  MakeTrackE "bd.wav" [Echo] X :||
+  MakeTrack  "bd.wav"        X
 
 test = do
   compileJSyn track1 120.0 "./" "Track"
@@ -37,7 +43,7 @@ genJSyn track bpm name template =
 -- Java-readable array of strings with sample paths.
 javaInstruments :: Track -> String
 javaInstruments track =
-  "{\"" ++ (concat . (intersperse "\", \"") . listOfInstruments) track ++ "\"}"
+  "{\"" ++ (concat . (intersperse "\", \"") . listOfSamples) track ++ "\"}"
 
 -- Java-readable instrument hit pattern.
 javaPattern :: Track -> String
@@ -53,7 +59,7 @@ javaPattern track =
     patterns = map translate $ listOfBeats track
     -- Translate sample names into array indexes.
     -- TODO: Learn about simplifiable class constraints and fix me.
-    translate :: [Instrument] -> [Int]
+    translate :: [EInstrument] -> [Int]
     translate [] = []
     translate lst@(x:xs) =
       case lookup x dictionary of
@@ -62,14 +68,18 @@ javaPattern track =
     dictionary = instrumentDictionary track
 
 -- Dictionary of instruments to their Java array indexes.
-instrumentDictionary :: Track -> [(Instrument, Int)]
+instrumentDictionary :: Track -> [(EInstrument, Int)]
 instrumentDictionary = (f 0 []) . listOfInstruments
   where
     -- Give each instrument an unique array id.
-    f :: Int -> [(Instrument, Int)] -> [Instrument] -> [(Instrument, Int)]
+    f :: Int -> [(EInstrument, Int)] -> [EInstrument] -> [(EInstrument, Int)]
     f i acc []     = acc
     f i acc (x:xs) = f (i + 1) ((x, i) : acc) xs
 
+-- List of sample names in a song.
+listOfSamples :: Track -> [Instrument]
+listOfSamples = (map snd) . listOfInstruments
+
 -- List of each instrument in a song.
-listOfInstruments :: Track -> [Instrument]
-listOfInstruments = nub . concat . listOfBeats
+listOfInstruments :: Track -> [EInstrument]
+listOfInstruments =  nub . concat . listOfBeats
