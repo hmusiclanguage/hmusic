@@ -8,6 +8,7 @@ public class %name% {
     try {
       new Backend()
         .loadSamples(new String[] %instrument%)
+          %effect%
         .play(%bpm%, new int[][] %pattern%, true);
     } catch (IOException e) {
       e.printStackTrace();

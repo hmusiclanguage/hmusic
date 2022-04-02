@@ -1,8 +1,7 @@
 module JSynCompiler where
 
 import Data.List
---import Data.List.Utils
-import Utils
+import Data.List.Utils
 import System.IO
 
 import HMusic
@@ -36,9 +35,13 @@ songTemplate = do
 genJSyn :: Track -> Float -> String -> String -> String
 genJSyn track bpm name template =
   (replace "%name%"       $ name)                  $
+  (replace "%effect%"     $ genJSynEffects track)  $
   (replace "%bpm%"        $ show bpm)              $
   (replace "%instrument%" $ javaInstruments track) $
   (replace "%pattern%"    $ javaPattern     track) template
+
+genJSynEffects :: Track -> String
+genJSynEffects track = ""
 
 -- Java-readable array of strings with sample paths.
 javaInstruments :: Track -> String
@@ -58,10 +61,9 @@ javaPattern track =
     -- Translated sample patterns.
     patterns = map translate $ listOfBeats track
     -- Translate sample names into array indexes.
-    -- TODO: Learn about simplifiable class constraints and fix me.
     translate :: [EInstrument] -> [Int]
     translate [] = []
-    translate lst@(x:xs) =
+    translate (x:xs) =
       case lookup x dictionary of
         Just hit -> hit : translate xs
         Nothing  -> []
