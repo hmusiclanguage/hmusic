@@ -6,10 +6,13 @@ import java.io.IOException;
 import com.jsyn.JSyn;
 import com.jsyn.Synthesizer;
 import com.jsyn.data.FloatSample;
+import com.jsyn.data.Function;
+import com.jsyn.unitgen.FunctionEvaluator;
 import com.jsyn.unitgen.LineOut;
 import com.jsyn.unitgen.VariableRateDataReader;
 import com.jsyn.unitgen.VariableRateMonoReader;
 import com.jsyn.unitgen.VariableRateStereoReader;
+import com.jsyn.unitgen.UnitGenerator;
 import com.jsyn.util.SampleLoader;
 
 public class Backend {
@@ -54,6 +57,36 @@ public class Backend {
       }
 
       channels[i].rate.set(samples[i].getFrameRate());
+    }
+
+    return this;
+  }
+
+  public Backend attachEffect (int i, Function f)
+  {
+    FunctionEvaluator unit = new FunctionEvaluator();
+
+    /* Create the function evaluator unit. */
+    synth.add(unit);
+    unit.function.set(f);
+
+    /* Detach from line and attach to effect. */
+    if (samples[i].getChannelsPerFrame() == 2) {
+      channels[i].output.disconnect(0, lineOut.input, 0);
+      channels[i].output.disconnect(1, lineOut.input, 1);
+
+      /* Problem: No stereo in effects rn. */
+      channels[i].output.connect(0, unit.input, 0);
+      channels[i].output.connect(1, unit.input, 0);
+
+      unit.output.connect(0, lineOut.input, 0);
+      unit.output.connect(0, lineOut.input, 1);
+    } else {
+      channels[i].output.disconnect(0, lineOut.input, 0);
+
+      channels[i].output.connect(0, unit.input, 0);
+
+      unit.output.connect(0, lineOut.input, 0);
     }
 
     return this;
