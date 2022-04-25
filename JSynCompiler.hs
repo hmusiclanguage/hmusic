@@ -15,6 +15,10 @@ testTrack =
   MakeTrackE "bd.wav" [Echo] X :||
   MakeTrack  "bd.wav"        X
 
+testTrackDuplicatedSample =
+  MakeTrack "bd.wav" (X :| O :| O :| X :| O :| O) :||
+  MakeTrack "bd.wav" (X :| O :| X :| O :| X :| O)
+
 test = do
   compileJSyn track1 120.0 "./" "Track"
 
