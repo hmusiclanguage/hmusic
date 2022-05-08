@@ -11,12 +11,6 @@ public class %name% {
       new Backend()
         .loadSamples(new String[] %instrument%)
           %effect%
-          .attachEffect(0, new Function() {
-                  public double evaluate (double x)
-                  {
-                      return 0;
-                  }
-              })
         .play(%bpm%, new int[][] %pattern%, true);
     } catch (IOException e) {
       e.printStackTrace();

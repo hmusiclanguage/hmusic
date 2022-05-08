@@ -4,6 +4,8 @@ import Data.List
 import Data.List.Utils
 import System.IO
 
+import JSynEffects
+
 import HMusic
 
 type EInstrument = (Maybe [Effect], Instrument)
@@ -11,16 +13,19 @@ type EInstrument = (Maybe [Effect], Instrument)
 -- TODO: Make sure the sample isn't loaded multiple times into memory in case
 -- it is duplicated (e.g. there's a guitar.wav with echo and one without).
 
+poly2Pattern = X :| O :| O :| X :| O :| O
+poly3Pattern = X :| O :| X :| O :| X :| O
+
 testTrack =
-  MakeTrackE "bd.wav" [Echo] X :||
-  MakeTrack  "bd.wav"        X
+  MakeTrackE "bd" [Amp 0.25] poly3Pattern :||
+  MakeTrack  "bd"           poly2Pattern
 
 testTrackDuplicatedSample =
-  MakeTrack "bd.wav" (X :| O :| O :| X :| O :| O) :||
-  MakeTrack "bd.wav" (X :| O :| X :| O :| X :| O)
+  MakeTrack "bd" poly2Pattern :||
+  MakeTrack "bd" poly3Pattern
 
 test = do
-  compileJSyn track1 120.0 "./" "Track"
+  compileJSyn testTrack 300.0 "./" "Track"
 
 compileJSyn :: Track -> Float -> String -> String -> IO ()
 compileJSyn track bpm path name = do
@@ -44,8 +49,15 @@ genJSyn track bpm name template =
   (replace "%instrument%" $ javaInstruments track) $
   (replace "%pattern%"    $ javaPattern     track) template
 
+-- String containing all java calls to add effects to each instrument.
 genJSynEffects :: Track -> String
-genJSynEffects track = ""
+genJSynEffects = (genEffects "") . instrumentDictionary
+  where
+    genEffects :: String -> [(EInstrument, Int)] -> String
+    genEffects calls []     = calls
+    genEffects calls (x:xs) = genEffects (call ++ calls) xs
+      where
+        call = callFromEffectList $ (fst . fst) x
 
 -- Java-readable array of strings with sample paths.
 javaInstruments :: Track -> String
