@@ -6,17 +6,18 @@ import HMusic
 
 -- Gets specifically the first effect from the list; if rewriting to use
 -- multiple effects, remove call to head and loop through list instead.
-callFromEffectList :: Maybe [Effect] -> String
-callFromEffectList Nothing      = ""
-callFromEffectList (Just lst) = let effect = head lst
-                                in callFromEffect effect
+callFromEffectList :: Int -> Maybe [Effect] -> String
+callFromEffectList _ Nothing      = ""
+callFromEffectList idx (Just lst) = let effect = head lst
+                                    in callFromEffect idx effect
 
-callFromEffect :: Effect -> String
-callFromEffect (Amp x) =
-  (replace "%arg%"    $ show x)  $
-  (replace "%effect%" $ jSynAmp) $ jSynEffect
+callFromEffect :: Int -> Effect -> String
+callFromEffect idx (Amp x) =
+  (replace "%arg%"    $ show x)   $
+  (replace "%effect%" $ jSynAmp)  $
+  (replace "%idx%"    $ show idx) $ jSynEffect
 
-jSynEffect = ".attachEffect(0, new Function() %effect%)"
+jSynEffect = ".attachEffect(%idx%, new Function() %effect%)"
 
 jSynAmp = "{\
           \ double arg;\

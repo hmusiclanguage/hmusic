@@ -57,7 +57,7 @@ genJSynEffects = (genEffects "") . instrumentDictionary
     genEffects calls []     = calls
     genEffects calls (x:xs) = genEffects (call ++ calls) xs
       where
-        call = callFromEffectList $ (fst . fst) x
+        call = callFromEffectList (snd x) $ (fst . fst) x
 
 -- Java-readable array of strings with sample paths.
 javaInstruments :: Track -> String
