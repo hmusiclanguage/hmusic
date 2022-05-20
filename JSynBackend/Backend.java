@@ -103,6 +103,8 @@ public class Backend {
       synth.start();
       lineOut.start();
 
+      synth.sleepFor(0.1);
+
       double time = synth.getCurrentTime();
       do {
         for (int[] beat : pattern) {  /* For each beat in a pattern, */
