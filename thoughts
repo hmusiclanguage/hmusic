@@ -1,9 +1,0 @@
-for attack can do like
-for (int i = STEP; i <= END; i += STEP) {
-  System.out.println(STEP, ", ", STEP / END, ", ");
-}
-into an envelope array.
-
-figure out a way to attach effects to the instruments,
-something like addEffect(index, Function ()) and inside
-use a function evaluator to go inbetween the sample and the line
