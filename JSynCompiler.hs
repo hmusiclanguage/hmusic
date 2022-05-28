@@ -13,20 +13,6 @@ type EInstrument = (Maybe [Effect], Instrument)
 -- TODO: Make sure the sample isn't loaded multiple times into memory in case
 -- it is duplicated (e.g. there's a guitar.wav with echo and one without).
 
-poly2Pattern = X :| O :| O :| X :| O :| O
-poly3Pattern = X :| O :| X :| O :| X :| O
-
-testTrack =
-  MakeTrackE "bd" [Amp 0.25] poly3Pattern :||
-  MakeTrack  "bd"           poly2Pattern
-
-testTrackDuplicatedSample =
-  MakeTrack "bd" poly2Pattern :||
-  MakeTrack "bd" poly3Pattern
-
-test = do
-  compileJSyn testTrack 300.0 "./" "Track"
-
 compileJSyn :: Track -> Float -> String -> String -> IO ()
 compileJSyn track bpm path name = do
   template <- songTemplate
