@@ -94,6 +94,7 @@ public class Runtime {
       unit.output.connect(0, lineOut.input, 1);
     } else {
       channels[i].output.disconnect(0, lineOut.input, 0);
+      channels[i].output.disconnect(0, lineOut.input, 1);
 
       channels[i].output.connect(0, unit.input, 0);
 
