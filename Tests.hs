@@ -4,6 +4,23 @@ import JSynCompiler
 
 import HMusic
 
+test = do
+  compileJSyn cumbiaDrum 392.0 "Track"
+
+cumbiaHH = X :| O :| X :| X
+cumbiaBD = X :| O :| O :| O
+cumbiaCB = O :| O :| X :| O
+
+cumbiaDrum =
+  MakeTrack  "bd"            cumbiaBD :||
+  MakeTrack  "cb"            cumbiaCB :||
+  MakeTrackE "hh" [Amp 0.25] cumbiaHH
+
+-----------------
+-- Test tracks --
+-----------------
+
+-- 2/3 Polyrhythm
 poly2Pattern = X :| O :| O :| X :| O :| O
 poly3Pattern = X :| O :| X :| O :| X :| O
 
@@ -17,6 +34,3 @@ testTrackSameSampleDistinctEffect =
 testTrackDuplicatedInstrument =
   MakeTrack "bd" poly2Pattern :||
   MakeTrack "bd" poly3Pattern
-
-test = do
-  compileJSyn testTrackSameSampleDistinctEffect 300.0 "./" "Track"
