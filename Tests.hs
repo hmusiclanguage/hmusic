@@ -1,11 +1,11 @@
 module Tests where
 
-import JSynCompiler
+import JavaBackend
 
 import HMusic
 
 test = do
-  compileJSyn cumbiaDrum 392.0 "Track"
+  compileJava cumbiaDrum 392.0 "Track"
 
 cumbiaHH = X :| O :| X :| X
 cumbiaBD = X :| O :| O :| O

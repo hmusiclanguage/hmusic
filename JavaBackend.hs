@@ -1,4 +1,4 @@
-module JSynCompiler where
+module JavaBackend where
 
 import Data.List
 import Data.List.Utils
@@ -13,8 +13,8 @@ type EInstrument = (Maybe [Effect], Instrument)
 -- TODO: Make sure the sample isn't loaded multiple times into memory in case
 -- it is duplicated (e.g. there's a guitar.wav with echo and one without).
 
-compileJSyn :: Track -> Float -> String -> IO ()
-compileJSyn track bpm name = do
+compileJava :: Track -> Float -> String -> IO ()
+compileJava track bpm name = do
   template <- songTemplate
   let song = genJava track bpm name template
   writeFile (name ++ ".java") song
