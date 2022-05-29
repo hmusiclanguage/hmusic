@@ -1,4 +1,4 @@
-package JSynBackend;
+package JavaRuntime;
 
 import java.io.File;
 import java.io.IOException;
@@ -15,7 +15,7 @@ import com.jsyn.unitgen.VariableRateStereoReader;
 import com.jsyn.unitgen.UnitGenerator;
 import com.jsyn.util.SampleLoader;
 
-public class Backend {
+public class Runtime {
   private Synthesizer synth;
   private LineOut lineOut;
   /*
@@ -26,13 +26,13 @@ public class Backend {
   private VariableRateDataReader[] channels;
   private FloatSample[] samples;
 
-  public Backend ()
+  public Runtime ()
   {
     synth = JSyn.createSynthesizer();
     synth.add(lineOut = new LineOut());
   }
 
-  public Backend loadSamples (String[] paths) throws IOException
+  public Runtime loadSamples (String[] paths) throws IOException
   {
     /* Load the samples from their files. */
     SampleLoader.setJavaSoundPreferred(false);
@@ -63,7 +63,7 @@ public class Backend {
     return this;
   }
 
-  public Backend attachEffect (int i, Function f)
+  public Runtime attachEffect (int i, Function f)
   {
     FunctionEvaluator unit = new FunctionEvaluator();
 
@@ -94,7 +94,7 @@ public class Backend {
     return this;
   }
 
-  public Backend play (double bpm, int[][] pattern, boolean loop)
+  public Runtime play (double bpm, int[][] pattern, boolean loop)
   {
     double songRate;
 
@@ -135,17 +135,5 @@ public class Backend {
     synth.stop();
 
     return this;
-  }
-
-  /* Testing main. */
-  public static void main (String[] args)
-  {
-    try {
-      new Backend()
-        .loadSamples(new String[] {"sample/bd.wav", "sample/sd.wav", "sample/hh.wav"})
-        .play(120, new int[][] {{0, 2}, {0, 2}, {1, 2}, {2}}, true);
-    } catch (IOException e) {
-      e.printStackTrace();
-    }
   }
 }
