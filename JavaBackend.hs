@@ -4,7 +4,7 @@ import Data.List
 import Data.List.Utils
 import System.IO
 
-import JSynEffects
+import JavaEffects
 
 import HMusic
 

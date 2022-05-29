@@ -16,6 +16,11 @@ import com.jsyn.unitgen.UnitGenerator;
 import com.jsyn.util.SampleLoader;
 
 public class Runtime {
+  @FunctionalInterface
+  public interface EffectFunction {
+    double apply (double x);
+  }
+
   private Synthesizer synth;
   private LineOut lineOut;
   /*
@@ -63,13 +68,18 @@ public class Runtime {
     return this;
   }
 
-  public Runtime attachEffect (int i, Function f)
+  public Runtime attachEffect (int i, EffectFunction f)
   {
     FunctionEvaluator unit = new FunctionEvaluator();
 
     /* Create the function evaluator unit. */
     synth.add(unit);
-    unit.function.set(f);
+    unit.function.set(new Function () {
+        public double evaluate (double x)
+        {
+          return f.apply(x);
+        }
+      });
 
     /* Detach from line and attach to effect. */
     if (samples[i].getChannelsPerFrame() == 2) {
