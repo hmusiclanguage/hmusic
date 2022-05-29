@@ -48,6 +48,7 @@ public class Backend {
       if (samples[i].getChannelsPerFrame() == 1) {
         synth.add(channels[i] = new VariableRateMonoReader());
         channels[i].output.connect(0, lineOut.input, 0);
+        channels[i].output.connect(0, lineOut.input, 1);
       } else if (samples[i].getChannelsPerFrame() == 2) {
         synth.add(channels[i] = new VariableRateStereoReader());
         channels[i].output.connect(0, lineOut.input, 0);
@@ -87,6 +88,7 @@ public class Backend {
       channels[i].output.connect(0, unit.input, 0);
 
       unit.output.connect(0, lineOut.input, 0);
+      unit.output.connect(0, lineOut.input, 1);
     }
 
     return this;
