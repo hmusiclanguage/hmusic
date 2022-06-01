@@ -1,10 +1,10 @@
-module JSynCompiler where
+module JavaBackend where
 
 import Data.List
 import Data.List.Utils
 import System.IO
 
-import JSynEffects
+import JavaEffects
 
 import HMusic
 
@@ -13,25 +13,11 @@ type EInstrument = (Maybe [Effect], Instrument)
 -- TODO: Make sure the sample isn't loaded multiple times into memory in case
 -- it is duplicated (e.g. there's a guitar.wav with echo and one without).
 
-poly2Pattern = X :| O :| O :| X :| O :| O
-poly3Pattern = X :| O :| X :| O :| X :| O
-
-testTrack =
-  MakeTrackE "bd" [Amp 0.25] poly3Pattern :||
-  MakeTrack  "bd"           poly2Pattern
-
-testTrackDuplicatedSample =
-  MakeTrack "bd" poly2Pattern :||
-  MakeTrack "bd" poly3Pattern
-
-test = do
-  compileJSyn testTrack 300.0 "./" "Track"
-
-compileJSyn :: Track -> Float -> String -> String -> IO ()
-compileJSyn track bpm path name = do
+compileJava :: Track -> Float -> String -> IO ()
+compileJava track bpm name = do
   template <- songTemplate
-  let song = genJSyn track bpm name template
-  writeFile (path ++ name ++ ".java") song
+  let song = genJava track bpm name template
+  writeFile (name ++ ".java") song
 
 -- Java class template for a compiled song.
 songTemplate :: IO String
@@ -41,17 +27,17 @@ songTemplate = do
   return contents
 
 -- Replaces template with song specifics.
-genJSyn :: Track -> Float -> String -> String -> String
-genJSyn track bpm name template =
+genJava :: Track -> Float -> String -> String -> String
+genJava track bpm name template =
   (replace "%name%"       $ name)                  $
-  (replace "%effect%"     $ genJSynEffects track)  $
+  (replace "%effect%"     $ javaEffects track)     $
   (replace "%bpm%"        $ show bpm)              $
   (replace "%instrument%" $ javaInstruments track) $
   (replace "%pattern%"    $ javaPattern     track) template
 
 -- String containing all java calls to add effects to each instrument.
-genJSynEffects :: Track -> String
-genJSynEffects = (genEffects "") . instrumentDictionary
+javaEffects :: Track -> String
+javaEffects = (genEffects "") . instrumentDictionary
   where
     genEffects :: String -> [(EInstrument, Int)] -> String
     genEffects calls []     = calls

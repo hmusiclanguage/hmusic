@@ -1,11 +1,10 @@
 ## Java
 *.class
+*.jar
 
 ## Tests
 sample/
 
-##
+## Output
 HMusic_temp.rb
-Utils.hs
 Track.java
-jsyn-20171016.jar

@@ -1,4 +1,4 @@
-module JSynEffects where
+module JavaEffects where
 
 import Data.List.Utils
 
@@ -14,23 +14,9 @@ callFromEffectList idx (Just lst) = let effect = head lst
 callFromEffect :: Int -> Effect -> String
 callFromEffect idx (Amp x) =
   (replace "%arg%"    $ show x)   $
-  (replace "%effect%" $ jSynAmp)  $
-  (replace "%idx%"    $ show idx) $ jSynEffect
+  (replace "%effect%" $ fxAmp)    $
+  (replace "%idx%"    $ show idx) $ javaEffect
 
-jSynEffect = ".attachEffect(%idx%, new Function() %effect%)"
+javaEffect = ".attachEffect(%idx%, %effect%)"
 
-jSynAmp = "{\
-          \ double arg;\
-          
-          \ public Function withArg (double x)\
-          \ {\
-          \ arg = x;\
-          
-          \ return this;\
-          \ } \
-          
-          \ public double evaluate (double x)\
-          \ {\
-          \ return arg * x;\
-          \ }\
-          \ }.withArg(%arg%)"
+fxAmp = "(x) -> %arg% * x"

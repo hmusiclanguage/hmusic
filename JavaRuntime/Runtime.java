@@ -1,4 +1,4 @@
-package JSynBackend;
+package JavaRuntime;
 
 import java.io.File;
 import java.io.IOException;
@@ -15,7 +15,12 @@ import com.jsyn.unitgen.VariableRateStereoReader;
 import com.jsyn.unitgen.UnitGenerator;
 import com.jsyn.util.SampleLoader;
 
-public class Backend {
+public class Runtime {
+  @FunctionalInterface
+  public interface EffectFunction {
+    double apply (double x);
+  }
+
   private Synthesizer synth;
   private LineOut lineOut;
   /*
@@ -26,13 +31,13 @@ public class Backend {
   private VariableRateDataReader[] channels;
   private FloatSample[] samples;
 
-  public Backend ()
+  public Runtime ()
   {
     synth = JSyn.createSynthesizer();
     synth.add(lineOut = new LineOut());
   }
 
-  public Backend loadSamples (String[] paths) throws IOException
+  public Runtime loadSamples (String[] paths) throws IOException
   {
     /* Load the samples from their files. */
     SampleLoader.setJavaSoundPreferred(false);
@@ -48,6 +53,7 @@ public class Backend {
       if (samples[i].getChannelsPerFrame() == 1) {
         synth.add(channels[i] = new VariableRateMonoReader());
         channels[i].output.connect(0, lineOut.input, 0);
+        channels[i].output.connect(0, lineOut.input, 1);
       } else if (samples[i].getChannelsPerFrame() == 2) {
         synth.add(channels[i] = new VariableRateStereoReader());
         channels[i].output.connect(0, lineOut.input, 0);
@@ -62,13 +68,18 @@ public class Backend {
     return this;
   }
 
-  public Backend attachEffect (int i, Function f)
+  public Runtime attachEffect (int i, EffectFunction f)
   {
     FunctionEvaluator unit = new FunctionEvaluator();
 
     /* Create the function evaluator unit. */
     synth.add(unit);
-    unit.function.set(f);
+    unit.function.set(new Function () {
+        public double evaluate (double x)
+        {
+          return f.apply(x);
+        }
+      });
 
     /* Detach from line and attach to effect. */
     if (samples[i].getChannelsPerFrame() == 2) {
@@ -83,16 +94,18 @@ public class Backend {
       unit.output.connect(0, lineOut.input, 1);
     } else {
       channels[i].output.disconnect(0, lineOut.input, 0);
+      channels[i].output.disconnect(0, lineOut.input, 1);
 
       channels[i].output.connect(0, unit.input, 0);
 
       unit.output.connect(0, lineOut.input, 0);
+      unit.output.connect(0, lineOut.input, 1);
     }
 
     return this;
   }
 
-  public Backend play (double bpm, int[][] pattern, boolean loop)
+  public Runtime play (double bpm, int[][] pattern, boolean loop)
   {
     double songRate;
 
@@ -133,17 +146,5 @@ public class Backend {
     synth.stop();
 
     return this;
-  }
-
-  /* Testing main. */
-  public static void main (String[] args)
-  {
-    try {
-      new Backend()
-        .loadSamples(new String[] {"sample/bd.wav", "sample/sd.wav", "sample/hh.wav"})
-        .play(120, new int[][] {{0, 2}, {0, 2}, {1, 2}, {2}}, true);
-    } catch (IOException e) {
-      e.printStackTrace();
-    }
   }
 }
