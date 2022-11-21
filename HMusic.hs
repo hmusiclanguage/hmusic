@@ -830,27 +830,43 @@ genNotes [] = ""
 genNotes ((Nothing,i):xs)
   | head i == ':' = "\tsample \"/s/" ++ tail i++ "\"\n" ++ genNotes xs
   | otherwise = "\tsample :" ++ i++ "\n" ++ genNotes xs
-genNotes ((Just e,i):xs) 
-  | head i == ':' = genWithEffect e ++"\tsample " ++"/s/\"" ++ tail i++"\"" ++" "++ genEnds e ++"\n" ++ genNotes xs
-  | otherwise = genWithEffect e ++"\tsample :" ++ i++ " "++ genEnds e ++"\n" ++ genNotes xs
--- genNotes ((Just e,i):xs) = "\tsample :" ++ i++ ", "++ genEffects e ++"\n" ++ genNotes xs
+genNotes ((Just e,i):xs)
+  | head i == ':' = genWithEffects (e, i)        ++ genNotes xs
+  | otherwise     = genWithEffects (e, ":" ++ i) ++ genNotes xs
 
+-- Sonic Pi string to play an instrument once, with effects.
+genWithEffects :: ([Effect], Instrument) -> String
+genWithEffects (e, i) = genBlockEffects e
+                        ++ "sample " ++ i
+                        ++ genInstrumentEffects e ++ "\n"
+                        ++ genEnds e
+  where
+    -- Instrument effects.
+    genInstrumentEffects :: [Effect] -> String
+    genInstrumentEffects [] = ""
+    genInstrumentEffects (e:es)
+      | not $ isBlockEffect e =
+          ", " ++ effectToString e ++ genInstrumentEffects es
+      | otherwise = genInstrumentEffects es
+    -- Effect blocks.
+    genBlockEffects :: [Effect] -> String
+    genBlockEffects [] = ""
+    genBlockEffects (e:es)
+      | isBlockEffect e =
+          "with_fx :" ++ effectToString e ++ " do\n" ++ genBlockEffects es
+      | otherwise = genBlockEffects es
+    -- Effect block ends.
+    genEnds :: [Effect] -> String
+    genEnds [] = ""
+    genEnds (e:es)
+      | isBlockEffect e = "end\n" ++ genEnds es
+      | otherwise       = genEnds es
 
-genWithEffect :: [Effect] -> String
-genWithEffect [] = ""
-genWithEffect (e:xs) = "with_fx :" ++ effectToString e ++ " do\n"++ genWithEffect xs
-
-genEnds :: [Effect] -> String
-genEnds [] = ""
-genEnds (x:xs) = "\nend" ++ genEnds xs
-
---genEffects :: Maybe
-
-
-genEffects :: [Effect] -> String
-genEffects [] = ""
-genEffects [e] = effectToString e
-genEffects (e:xs) = effectToString e ++ ", " ++ genEffects xs
+-- Whether effect e is applied to a block of code or to an instrument.
+isBlockEffect :: Effect -> Bool
+isBlockEffect (Reverb n) = True
+isBlockEffect Echo       = True
+isBlockEffect _          = False
 
 effectToString :: Effect -> String
 effectToString (Reverb n) = "reverb" 
